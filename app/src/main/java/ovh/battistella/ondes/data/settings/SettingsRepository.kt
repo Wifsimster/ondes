@@ -115,6 +115,7 @@ class SettingsRepository @Inject constructor(
         it[Keys.NEW_EPISODE_NOTIFS] = s.newEpisodeNotifications
         it[Keys.THEME_MODE] = s.themeMode.name
         it[Keys.DYNAMIC_COLOR] = s.dynamicColor
+        it[Keys.ONBOARDING_DONE] = s.onboardingDone
     }
 
     private suspend fun edit(

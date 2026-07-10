@@ -7,7 +7,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.xmlpull.v1.XmlPullParser
 import java.io.InputStream
-import java.text.SimpleDateFormat
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -59,6 +58,10 @@ class RssParser @Inject constructor(
         var iDuration = 0L
         var iChapters = ""
 
+        // A malformed tail (bad entity, mismatched tag) must not throw away the
+        // episodes already parsed — otherwise one stray `&nbsp;` makes a whole
+        // feed permanently un-subscribable (issue P1-7). Keep what we have.
+        runCatching {
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
                 XmlPullParser.START_TAG -> {
@@ -77,7 +80,7 @@ class RssParser @Inject constructor(
                                 "description" -> if (iDesc.isEmpty()) iDesc = r.second
                                 "content:encoded" -> iDesc = r.second
                                 "guid" -> iGuid = r.second
-                                "pubdate" -> iPub = parseDate(r.second)
+                                "pubdate" -> iPub = RssDates.parse(r.second)
                                 "duration" -> iDuration = parseDuration(r.second)
                                 "audio" -> iAudio = r.second
                                 "image" -> iImage = r.second
@@ -85,17 +88,17 @@ class RssParser @Inject constructor(
                             }
                         }
                         insideImage -> {
-                            if (name == "url") channelImage = parser.nextText().trim()
+                            if (name == "url") channelImage = readText(parser)
                         }
                         else -> when (name) {
-                            "title" -> channelTitle = parser.nextText().trim()
+                            "title" -> channelTitle = readText(parser)
                             "description", "subtitle" ->
-                                if (channelDesc.isEmpty()) channelDesc = parser.nextText().trim()
-                            "author" -> channelAuthor = parser.nextText().trim()
+                                if (channelDesc.isEmpty()) channelDesc = readText(parser)
+                            "author" -> channelAuthor = readText(parser)
                             "itunes:author" -> if (channelAuthor.isEmpty())
-                                channelAuthor = parser.nextText().trim()
+                                channelAuthor = readText(parser)
                             "link" -> if (channelLink.isEmpty())
-                                channelLink = parser.nextText().trim()
+                                channelLink = readText(parser)
                             "itunes:image" -> if (channelImage.isEmpty())
                                 channelImage = parser.getAttributeValue(null, "href")?.trim().orEmpty()
                         }
@@ -127,6 +130,7 @@ class RssParser @Inject constructor(
             }
             event = parser.next()
         }
+        }
 
         return ParsedFeed(
             title = channelTitle.ifEmpty { "Podcast" },
@@ -140,12 +144,12 @@ class RssParser @Inject constructor(
 
     /** Returns a (key,value) for recognized item-level tags, or null. */
     private fun readItemTag(parser: XmlPullParser, name: String): Pair<String, String>? = when (name) {
-        "title" -> "title" to parser.nextText().trim()
-        "description", "summary", "itunes:summary" -> "description" to parser.nextText().trim()
-        "content:encoded" -> "content:encoded" to parser.nextText().trim()
-        "guid", "id" -> "guid" to parser.nextText().trim()
-        "pubdate", "published", "updated" -> "pubdate" to parser.nextText().trim()
-        "itunes:duration" -> "duration" to parser.nextText().trim()
+        "title" -> "title" to readText(parser)
+        "description", "summary", "itunes:summary" -> "description" to readText(parser)
+        "content:encoded" -> "content:encoded" to readText(parser)
+        "guid", "id" -> "guid" to readText(parser)
+        "pubdate", "published", "updated" -> "pubdate" to readText(parser)
+        "itunes:duration" -> "duration" to readText(parser)
         "enclosure" -> {
             val url = parser.getAttributeValue(null, "url")?.trim().orEmpty()
             if (url.isNotEmpty()) "audio" to url else null
@@ -177,27 +181,32 @@ class RssParser @Inject constructor(
         }
     }
 
-    private fun parseDate(raw: String): Long {
-        val t = raw.trim()
-        if (t.isEmpty()) return 0L
-        for (fmt in DATE_FORMATS) {
-            runCatching {
-                val sdf = SimpleDateFormat(fmt, Locale.US)
-                return sdf.parse(t)?.time ?: 0L
+    /**
+     * Read the text content of the element the parser is positioned on, tolerant
+     * of mixed content: nested tags (e.g. raw HTML in a description that isn't in
+     * a CDATA section) are skipped rather than throwing, unlike [XmlPullParser.nextText]
+     * which aborts the whole parse on any element child (issue P1-7). Leaves the
+     * parser on the element's END_TAG, matching `nextText()` so the caller's loop
+     * advances correctly.
+     */
+    private fun readText(parser: XmlPullParser): String {
+        val sb = StringBuilder()
+        var depth = 1
+        runCatching {
+            while (depth > 0) {
+                when (parser.next()) {
+                    XmlPullParser.START_TAG -> depth++
+                    XmlPullParser.END_TAG -> depth--
+                    XmlPullParser.TEXT, XmlPullParser.CDSECT ->
+                        if (depth == 1) sb.append(parser.text)
+                    XmlPullParser.END_DOCUMENT -> return@runCatching
+                }
             }
         }
-        return 0L
+        return sb.toString().trim()
     }
 
     companion object {
         private const val USER_AGENT = "Ondes/1.0 (Android podcast app)"
-        private val DATE_FORMATS = listOf(
-            "EEE, dd MMM yyyy HH:mm:ss Z",
-            "EEE, dd MMM yyyy HH:mm:ss zzz",
-            "EEE, dd MMM yyyy HH:mm Z",
-            "yyyy-MM-dd'T'HH:mm:ssZ",
-            "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            "yyyy-MM-dd'T'HH:mm:ssXXX",
-        )
     }
 }

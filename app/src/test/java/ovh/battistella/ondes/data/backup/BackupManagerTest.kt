@@ -9,6 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import ovh.battistella.ondes.data.local.DownloadState
 import ovh.battistella.ondes.data.local.OndesDatabase
 import ovh.battistella.ondes.data.local.QueueItemEntity
 import ovh.battistella.ondes.data.settings.OndesSettings
@@ -31,7 +32,7 @@ class BackupManagerTest {
     private fun newManager(): Pair<OndesDatabase, BackupManager> {
         val db = TestSupport.inMemoryDb().also(dbs::add)
         coEvery { settings.snapshot() } returns OndesSettings()
-        return db to BackupManager(db.podcastDao(), db.episodeDao(), db.queueDao(), settings)
+        return db to BackupManager(db, db.podcastDao(), db.episodeDao(), db.queueDao(), settings)
     }
 
     @After fun tearDown() {
@@ -69,5 +70,52 @@ class BackupManagerTest {
         importer.import(ByteArrayInputStream(doc.toByteArray()))
 
         assertNull(target.podcastDao().getPodcast("file:///etc/passwd"))
+    }
+
+    @Test
+    fun `import restores progress without clobbering an existing download`() = runBlocking {
+        val (db, importer) = newManager()
+        // An episode already downloaded on this device.
+        db.episodeDao().upsertAll(
+            listOf(
+                TestSupport.episode(
+                    id = "e1",
+                    feedUrl = "https://a.example/feed",
+                    downloadState = DownloadState.DOWNLOADED,
+                    localFilePath = "/data/e1.audio",
+                ),
+            ),
+        )
+        val doc = """
+            { "version": 1, "podcasts": [], "queue": [],
+              "episodes": [ { "id": "e1", "feedUrl": "https://a.example/feed",
+                              "audioUrl": "https://a.example/e1.mp3", "positionMs": 5000 } ] }
+        """.trimIndent()
+
+        importer.import(ByteArrayInputStream(doc.toByteArray()))
+
+        val e1 = db.episodeDao().getEpisode("e1")!!
+        assertEquals(5000L, e1.positionMs)                       // progress restored
+        assertEquals(DownloadState.DOWNLOADED, e1.downloadState) // download preserved
+        assertEquals("/data/e1.audio", e1.localFilePath)
+    }
+
+    @Test
+    fun `a malformed episode entry is skipped without aborting the import`() = runBlocking {
+        val (db, importer) = newManager()
+        val doc = """
+            { "version": 1, "queue": [],
+              "podcasts": [ { "feedUrl": "https://a.example/feed", "title": "A" } ],
+              "episodes": [ { "id": "bad" },
+                            { "id": "good", "feedUrl": "https://a.example/feed",
+                              "audioUrl": "https://a.example/g.mp3" } ] }
+        """.trimIndent()
+
+        importer.import(ByteArrayInputStream(doc.toByteArray()))
+
+        // The valid podcast and episode land; the entry missing an audio URL is dropped.
+        assertEquals("A", db.podcastDao().getPodcast("https://a.example/feed")?.title)
+        assertNull(db.episodeDao().getEpisode("bad"))
+        assertEquals("good", db.episodeDao().getEpisode("good")?.id)
     }
 }

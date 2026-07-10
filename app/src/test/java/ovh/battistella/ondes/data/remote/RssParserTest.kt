@@ -73,4 +73,35 @@ class RssParserTest {
         assertEquals("Podcast", result.title)
         assertEquals(emptyList<String>(), result.episodes.map { it.guid })
     }
+
+    @Test
+    fun `mixed content in a description does not abort the whole feed`() {
+        // A description with a nested tag outside CDATA makes XmlPullParser.nextText()
+        // throw, which previously dropped every episode in the feed. The tolerant
+        // reader must keep parsing (issue P1-7).
+        val mixed = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss>
+              <channel>
+                <title>Mixed Cast</title>
+                <item>
+                  <title>Has Markup</title>
+                  <guid>guid-mixed</guid>
+                  <description>Intro <b>bold</b> outro</description>
+                  <enclosure url="https://cdn.example/mixed.mp3" type="audio/mpeg"/>
+                </item>
+                <item>
+                  <title>Plain</title>
+                  <guid>guid-plain</guid>
+                  <enclosure url="https://cdn.example/plain.mp3" type="audio/mpeg"/>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val episodes = parse(mixed).episodes
+
+        // Both episodes survive; the feed is not rendered un-subscribable.
+        assertEquals(listOf("guid-mixed", "guid-plain"), episodes.map { it.guid })
+    }
 }

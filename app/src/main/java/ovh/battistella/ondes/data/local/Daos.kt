@@ -95,6 +95,43 @@ interface EpisodeDao {
     @Query("UPDATE episodes SET downloadState = :state, downloadProgress = :progress, localFilePath = :path WHERE id = :id")
     suspend fun updateDownload(id: String, state: DownloadState, progress: Int, path: String?)
 
+    /**
+     * Refresh the *feed-owned* content of an already-known episode — title, notes,
+     * URLs, dates — while leaving the user's listening progress and download
+     * columns untouched. Lets a rotated/signed enclosure URL be picked up without
+     * INSERT-IGNORE freezing metadata at first sight, and without ever clobbering a
+     * resume position or a downloaded file (issue P1-9).
+     */
+    @Query(
+        """
+        UPDATE episodes SET
+            title = :title,
+            description = :description,
+            audioUrl = :audioUrl,
+            imageUrl = :imageUrl,
+            pubDate = :pubDate,
+            durationMs = CASE WHEN :durationMs > 0 THEN :durationMs ELSE durationMs END
+        WHERE id = :id
+        """
+    )
+    suspend fun updateContent(
+        id: String,
+        title: String,
+        description: String,
+        audioUrl: String,
+        imageUrl: String,
+        pubDate: Long,
+        durationMs: Long,
+    )
+
+    /**
+     * Restore only the portable listening state for an episode that already
+     * exists locally — never the download columns, which are device-local and
+     * must survive a backup import (issue P0-8).
+     */
+    @Query("UPDATE episodes SET positionMs = :positionMs, isPlayed = :isPlayed, isFinished = :isFinished WHERE id = :id")
+    suspend fun restoreProgress(id: String, positionMs: Long, isPlayed: Boolean, isFinished: Boolean)
+
     /** Backfill a chapters URL for an already-known episode that didn't have one. */
     @Query("UPDATE episodes SET chaptersUrl = :url WHERE id = :id AND chaptersUrl IS NULL")
     suspend fun updateChaptersUrl(id: String, url: String)
