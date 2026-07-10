@@ -64,27 +64,74 @@ class PlaybackConnection @Inject constructor(
     /** Smooth-progress ticker; only alive while something is actually playing. */
     private var tickerJob: Job? = null
 
-    init {
-        scope.launch { settingsRepository.settings.collect { settings = it } }
-        connect()
-    }
-
     private fun connect() {
+        // Idempotent: never open a second controller while one is live or a
+        // connection is already in flight.
+        if (controller != null || controllerFuture != null) return
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
-        val future = MediaController.Builder(context, token).buildAsync()
+        val future = MediaController.Builder(context, token)
+            .setListener(controllerListener)
+            .buildAsync()
         controllerFuture = future
         future.addListener({
-            controller = future.get()
-            controller?.addListener(playerListener)
-            _state.value = _state.value.copy(isConnected = true)
-            syncFromController()
+            try {
+                val c = future.get()
+                controller = c
+                c.addListener(playerListener)
+                _state.value = _state.value.copy(isConnected = true)
+                syncFromController()
+            } catch (t: Throwable) {
+                // Session connection failed — reset so the next command retries
+                // instead of the app crashing on an unguarded future.get()
+                // (issue P1-1).
+                controller = null
+                controllerFuture = null
+                _state.value = _state.value.copy(isConnected = false)
+            }
         }, MoreExecutors.directExecutor())
+    }
+
+    /**
+     * Return the live controller, or trigger a (lazy) reconnect and return null.
+     * The service can be torn down while the app process survives — without this
+     * the singleton kept a dead controller forever and every transport button
+     * silently no-oped (issue P0-4).
+     */
+    private fun requireController(): MediaController? {
+        val c = controller
+        if (c == null) connect()
+        return c
+    }
+
+    private fun releaseController() {
+        tickerJob?.cancel()
+        tickerJob = null
+        controller?.removeListener(playerListener)
+        controller?.release()
+        controller = null
+        controllerFuture = null
+        _state.value = _state.value.copy(isConnected = false, isPlaying = false)
+    }
+
+    private val controllerListener = object : MediaController.Listener {
+        override fun onDisconnected(controller: MediaController) {
+            // The service died: drop the stale controller so the next command
+            // reconnects to a fresh session.
+            releaseController()
+        }
     }
 
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             syncFromController()
         }
+    }
+
+    init {
+        // Declared after the listeners so both are initialised before connect()
+        // wires them into the controller during construction.
+        scope.launch { settingsRepository.settings.collect { settings = it } }
+        connect()
     }
 
     private fun startPositionTicker() {
@@ -130,10 +177,10 @@ class PlaybackConnection @Inject constructor(
      * playback flows continuously into the next one.
      */
     fun play(episode: EpisodeEntity, queue: List<EpisodeEntity> = emptyList()) {
-        val c = controller ?: return
+        val c = requireController() ?: return
         // If this episode is already loaded, just resume.
         if (c.currentMediaItem?.mediaId == episode.id) {
-            c.play()
+            c.resume()
             return
         }
 
@@ -170,10 +217,10 @@ class PlaybackConnection @Inject constructor(
      * and everything after it into the player so it flows through the queue.
      */
     fun playFromQueue(queue: List<EpisodeEntity>, startIndex: Int) {
-        val c = controller ?: return
+        val c = requireController() ?: return
         val start = queue.getOrNull(startIndex) ?: return
         if (c.currentMediaItem?.mediaId == start.id) {
-            c.play()
+            c.resume()
             return
         }
         // The start episode is pinned to index 0 so its saved position applies to
@@ -188,23 +235,37 @@ class PlaybackConnection @Inject constructor(
     }
 
     fun playPause() {
-        val c = controller ?: return
-        if (c.isPlaying) c.pause() else c.play()
+        val c = requireController() ?: return
+        if (c.isPlaying) c.pause() else c.resume()
     }
 
     fun pause() { controller?.pause() }
+
+    /**
+     * Mark the currently-loaded episode played and drop it from the Up-Next
+     * queue. Used by the end-of-episode sleep timer, which pauses a beat before
+     * the true end — without this the episode would never be marked finished and
+     * would linger in the queue and "Continue listening" (issue P1-4).
+     */
+    fun finishCurrentEpisode() {
+        val id = controller?.currentMediaItem?.mediaId?.takeIf { it.isNotBlank() } ?: return
+        scope.launch {
+            repository.setPlayed(id, true)
+            repository.removeFromQueue(id)
+        }
+    }
 
     fun seekTo(positionMs: Long) { controller?.seekTo(positionMs) }
 
     /** Skip backward by the user-configured interval. */
     fun seekBack() {
-        val c = controller ?: return
+        val c = requireController() ?: return
         c.seekTo((c.currentPosition - settings.skipBackMs).coerceAtLeast(0))
     }
 
     /** Skip forward by the user-configured interval. */
     fun seekForward() {
-        val c = controller ?: return
+        val c = requireController() ?: return
         val target = c.currentPosition + settings.skipForwardMs
         val duration = c.duration
         c.seekTo(if (duration > 0) target.coerceAtMost(duration) else target)
@@ -212,13 +273,13 @@ class PlaybackConnection @Inject constructor(
 
     /** Advance to the next loaded item (e.g. the next queued episode). */
     fun next() {
-        val c = controller ?: return
+        val c = requireController() ?: return
         if (c.hasNextMediaItem()) c.seekToNextMediaItem()
     }
 
     /** Go to the previous loaded item, or restart the current one. */
     fun previous() {
-        val c = controller ?: return
+        val c = requireController() ?: return
         if (c.hasPreviousMediaItem()) c.seekToPreviousMediaItem() else c.seekTo(0)
     }
 
@@ -232,5 +293,16 @@ class PlaybackConnection @Inject constructor(
             pause()
             clearMediaItems()
         }
+    }
+
+    /**
+     * Resume the already-loaded item. After a playback error the player parks in
+     * [Player.STATE_IDLE]; calling [MediaController.play] alone then does nothing
+     * and the play button looks dead — re-[prepare] first so it can recover
+     * (issue P1-5).
+     */
+    private fun MediaController.resume() {
+        if (playbackState == Player.STATE_IDLE) prepare()
+        play()
     }
 }
