@@ -7,12 +7,14 @@ import ovh.battistella.ondes.R
 import ovh.battistella.ondes.common.SnackbarController
 import ovh.battistella.ondes.data.local.EpisodeEntity
 import ovh.battistella.ondes.data.repository.PodcastRepository
+import ovh.battistella.ondes.playback.NowPlaying
 import ovh.battistella.ondes.playback.PlaybackConnection
-import ovh.battistella.ondes.playback.PlayerUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -28,8 +30,12 @@ class QueueViewModel @Inject constructor(
     val queue: StateFlow<List<EpisodeEntity>> = repository.observeQueue()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val playerState: StateFlow<PlayerUiState> = connection.state
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlayerUiState())
+    // Minimal now-playing signal for the rows; position ticks are dropped so the
+    // queue doesn't recompose on every tick during playback (opt. 3).
+    val nowPlaying: StateFlow<NowPlaying> = connection.state
+        .map { NowPlaying(it.currentEpisodeId, it.isPlaying) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), NowPlaying())
 
     /** Tapping a row plays the queue starting there; tapping the current one toggles. */
     fun playToggle(episode: EpisodeEntity) {

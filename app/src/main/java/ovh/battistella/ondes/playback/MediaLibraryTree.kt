@@ -79,10 +79,10 @@ class MediaLibraryTree @Inject constructor(
             MediaItems.folder(SUBSCRIPTIONS_ID, context.getString(R.string.subscriptions_title))
         DOWNLOADS_ID -> MediaItems.folder(DOWNLOADS_ID, context.getString(R.string.nav_downloads))
         else -> when {
+            // Indexed lookup by feed URL (the id is the URL under a prefix) rather
+            // than loading every subscription and linear-scanning it (opt. 9).
             mediaId.startsWith(PODCAST_PREFIX) ->
-                repository.getSubscriptionsOnce()
-                    .firstOrNull { PODCAST_PREFIX + it.feedUrl == mediaId }
-                    ?.let(::podcastItem)
+                repository.getPodcastOnce(mediaId.removePrefix(PODCAST_PREFIX))?.let(::podcastItem)
             else -> repository.getEpisode(mediaId)?.let(MediaItems::browsable)
         }
     }

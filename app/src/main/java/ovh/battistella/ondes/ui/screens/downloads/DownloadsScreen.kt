@@ -26,7 +26,7 @@ fun DownloadsScreen(
     viewModel: DownloadsViewModel = hiltViewModel(),
 ) {
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
-    val playerState by viewModel.playerState.collectAsStateWithLifecycle()
+    val nowPlaying by viewModel.nowPlaying.collectAsStateWithLifecycle()
 
     if (downloads.isEmpty()) {
         OndesEmptyState(
@@ -44,8 +44,8 @@ fun DownloadsScreen(
         items(downloads, key = { it.id }) { episode ->
             EpisodeRow(
                 episode = episode,
-                isCurrent = playerState.currentEpisodeId == episode.id,
-                isPlaying = playerState.isPlaying,
+                isCurrent = nowPlaying.episodeId == episode.id,
+                isPlaying = nowPlaying.isPlaying,
                 onPlayToggle = { viewModel.playToggle(episode) },
                 onClick = { viewModel.open(episode); onOpenPlayer() },
                 onDownload = {},

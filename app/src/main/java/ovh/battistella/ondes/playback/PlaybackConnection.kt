@@ -41,6 +41,17 @@ data class PlayerUiState(
 )
 
 /**
+ * The minimal now-playing signal an episode *list* needs: which episode is loaded
+ * and whether it's playing. Derived from [PlayerUiState] with the 2 Hz position
+ * updates deliberately dropped (via `distinctUntilChanged`) so a list doesn't
+ * recompose on every progress tick during playback (opt. 3).
+ */
+data class NowPlaying(
+    val episodeId: String? = null,
+    val isPlaying: Boolean = false,
+)
+
+/**
  * App-wide bridge to [PlaybackService]. Connects a [MediaController] and
  * exposes a single [PlayerUiState] flow that any screen (mini-player, now
  * playing) can observe.
@@ -131,6 +142,20 @@ class PlaybackConnection @Inject constructor(
         // Declared after the listeners so both are initialised before connect()
         // wires them into the controller during construction.
         scope.launch { settingsRepository.settings.collect { settings = it } }
+        // Gate the 500ms position ticker on whether anyone is actually observing
+        // the player state. When the app is backgrounded every screen's
+        // WhileSubscribed lapses, so without this the ticker would keep waking the
+        // main thread twice a second for the whole playback session (opt. 3).
+        scope.launch {
+            _state.subscriptionCount.collect { count ->
+                if (count > 0) {
+                    if (controller?.isPlaying == true) startPositionTicker()
+                } else {
+                    tickerJob?.cancel()
+                    tickerJob = null
+                }
+            }
+        }
         connect()
     }
 
@@ -140,6 +165,8 @@ class PlaybackConnection @Inject constructor(
             while (isActive) {
                 val c = controller ?: break
                 if (!c.isPlaying) break
+                // Nobody watching → stop ticking (restarted when a collector returns).
+                if (_state.subscriptionCount.value == 0) break
                 _state.value = _state.value.copy(
                     positionMs = c.currentPosition.coerceAtLeast(0),
                     durationMs = c.duration.let { if (it == C.TIME_UNSET) 0L else it },
@@ -152,9 +179,10 @@ class PlaybackConnection @Inject constructor(
 
     private fun syncFromController() {
         val c = controller ?: return
-        // Run the smooth-progress ticker only while playing; stop it otherwise so
-        // the main thread isn't woken every 500ms for the process's whole life.
-        if (c.isPlaying) startPositionTicker() else { tickerJob?.cancel(); tickerJob = null }
+        // Run the smooth-progress ticker only while playing AND observed, so the
+        // main thread isn't woken every 500ms for the process's whole life.
+        if (c.isPlaying && _state.subscriptionCount.value > 0) startPositionTicker()
+        else { tickerJob?.cancel(); tickerJob = null }
         val item = c.currentMediaItem
         _state.value = _state.value.copy(
             isConnected = true,
