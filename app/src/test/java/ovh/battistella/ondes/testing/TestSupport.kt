@@ -50,6 +50,7 @@ object TestSupport {
         rss: RssParser = mockk(relaxed = true),
         search: PodcastSearchService = mockk(relaxed = true),
     ): PodcastRepository = PodcastRepository(
+        db = db,
         podcastDao = db.podcastDao(),
         episodeDao = db.episodeDao(),
         queueDao = db.queueDao(),

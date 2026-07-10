@@ -1,8 +1,10 @@
 package ovh.battistella.ondes.data.repository
 
+import androidx.room.withTransaction
 import ovh.battistella.ondes.data.local.DownloadState
 import ovh.battistella.ondes.data.local.EpisodeDao
 import ovh.battistella.ondes.data.local.EpisodeEntity
+import ovh.battistella.ondes.data.local.OndesDatabase
 import ovh.battistella.ondes.data.local.PodcastDao
 import ovh.battistella.ondes.data.local.PodcastEntity
 import ovh.battistella.ondes.data.local.PodcastWithCount
@@ -35,6 +37,7 @@ data class NewEpisodeBatch(
 
 @Singleton
 class PodcastRepository @Inject constructor(
+    private val db: OndesDatabase,
     private val podcastDao: PodcastDao,
     private val episodeDao: EpisodeDao,
     private val queueDao: QueueDao,
@@ -105,17 +108,15 @@ class PodcastRepository @Inject constructor(
         withContext(ioDispatcher) {
             val parsed: ParsedFeed = rssParser.fetchAndParse(feedUrl)
             val existing = podcastDao.getPodcast(feedUrl)
-            podcastDao.upsert(
-                PodcastEntity(
-                    feedUrl = feedUrl,
-                    title = parsed.title,
-                    author = parsed.author,
-                    description = parsed.description,
-                    imageUrl = parsed.imageUrl.ifEmpty { existing?.imageUrl.orEmpty() },
-                    link = parsed.link,
-                    subscribed = markSubscribed || (existing?.subscribed ?: true),
-                    lastUpdated = System.currentTimeMillis(),
-                )
+            val podcast = PodcastEntity(
+                feedUrl = feedUrl,
+                title = parsed.title,
+                author = parsed.author,
+                description = parsed.description,
+                imageUrl = parsed.imageUrl.ifEmpty { existing?.imageUrl.orEmpty() },
+                link = parsed.link,
+                subscribed = markSubscribed || (existing?.subscribed ?: true),
+                lastUpdated = System.currentTimeMillis(),
             )
             val fallbackImage = parsed.imageUrl
             val rows = parsed.episodes.map { e ->
@@ -131,14 +132,38 @@ class PodcastRepository @Inject constructor(
                     chaptersUrl = e.chaptersUrl.ifEmpty { null },
                 )
             }
-            // INSERT IGNORE keeps existing playback state for known episodes; a
-            // rowId of -1 marks a row that already existed and was skipped.
-            val rowIds = episodeDao.insertNew(rows)
-            // Backfill chapters for episodes that pre-date this field.
-            rows.forEach { row ->
-                row.chaptersUrl?.let { episodeDao.updateChaptersUrl(row.id, it) }
+            // One transaction for the whole reconcile: podcast + episodes land
+            // together or not at all. Previously an interrupted refresh could bump
+            // the podcast's lastUpdated with zero episodes stored, later
+            // mis-firing "new episode" notifications for the back catalogue, and
+            // cost 2+N separate fsync'd writes (issues P1-8, opt. 4).
+            db.withTransaction {
+                podcastDao.upsert(podcast)
+                // INSERT IGNORE keeps existing playback state for known episodes; a
+                // rowId of -1 marks a row that already existed and was skipped.
+                val rowIds = episodeDao.insertNew(rows)
+                rows.forEachIndexed { index, row ->
+                    val isNew = rowIds.getOrElse(index) { -1L } != -1L
+                    if (!isNew) {
+                        // Refresh feed-owned content for a known episode so a
+                        // rotated enclosure URL / edited title is picked up, without
+                        // disturbing progress or downloads (issue P1-9).
+                        episodeDao.updateContent(
+                            id = row.id,
+                            title = row.title,
+                            description = row.description,
+                            audioUrl = row.audioUrl,
+                            imageUrl = row.imageUrl,
+                            pubDate = row.pubDate,
+                            durationMs = row.durationMs,
+                        )
+                    }
+                    // Backfill chapters for episodes that pre-date this field
+                    // (updateChaptersUrl only fills a currently-null value).
+                    row.chaptersUrl?.let { episodeDao.updateChaptersUrl(row.id, it) }
+                }
+                rows.filterIndexed { index, _ -> rowIds.getOrElse(index) { -1L } != -1L }
             }
-            rows.filterIndexed { index, _ -> rowIds.getOrElse(index) { -1L } != -1L }
         }
 
     suspend fun refreshAllSubscriptions(feedUrls: List<String>) = withContext(ioDispatcher) {
