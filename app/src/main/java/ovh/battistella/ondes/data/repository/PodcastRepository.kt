@@ -66,6 +66,14 @@ class PodcastRepository @Inject constructor(
     suspend fun setPodcastAutoDownload(feedUrl: String, enabled: Boolean) =
         podcastDao.setAutoDownload(feedUrl, enabled)
 
+    /**
+     * One-shot set of subscribed feed URLs via a plain query (no live table
+     * observer), for seeding initial UI state without a Flow subscription that
+     * could re-enter a concurrent refresh transaction.
+     */
+    suspend fun getSubscribedFeedUrlsOnce(): Set<String> =
+        podcastDao.getAll().asSequence().filter { it.subscribed }.map { it.feedUrl }.toSet()
+
     // --- one-shot snapshots, used to build the Android Auto browse tree ---
     suspend fun getSubscriptionsOnce(): List<PodcastEntity> = observeSubscriptions().first()
     suspend fun getEpisodesOnce(feedUrl: String): List<EpisodeEntity> = observeEpisodes(feedUrl).first()
