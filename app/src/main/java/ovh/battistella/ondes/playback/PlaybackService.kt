@@ -1,5 +1,7 @@
 package ovh.battistella.ondes.playback
 
+import android.app.PendingIntent
+import android.content.Intent
 import android.media.audiofx.LoudnessEnhancer
 import android.util.Log
 import androidx.media3.common.AudioAttributes
@@ -12,6 +14,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSession.MediaItemsWithStartPosition
 import androidx.media3.session.SessionResult
+import ovh.battistella.ondes.MainActivity
 import ovh.battistella.ondes.data.repository.PodcastRepository
 import ovh.battistella.ondes.data.settings.OndesSettings
 import ovh.battistella.ondes.data.settings.SettingsRepository
@@ -124,7 +127,21 @@ class PlaybackService : MediaLibraryService() {
         })
 
         applyAudioEffects()
-        mediaSession = MediaLibrarySession.Builder(this, player, LibraryCallback()).build()
+        mediaSession = MediaLibrarySession.Builder(this, player, LibraryCallback())
+            // Wire the media notification (and lock-screen / "island" capsule) to
+            // reopen the app when tapped or expanded. Media3 uses the session
+            // activity as the notification's content intent; without it a tap is a
+            // no-op. singleTop keeps the running instance instead of recreating it.
+            .setSessionActivity(openAppIntent())
+            .build()
+    }
+
+    /** PendingIntent that brings [MainActivity] to the foreground when the media notification is tapped. */
+    private fun openAppIntent(): PendingIntent {
+        val intent = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        return PendingIntent.getActivity(this, 0, intent, flags)
     }
 
     /** Apply the user's skip-silence and volume-boost preferences to the player. */
