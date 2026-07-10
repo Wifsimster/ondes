@@ -1,6 +1,8 @@
 # 📻 Ondes — podcasts without the ads watching you back
 
-**Your podcasts. 0 ads, 0 trackers, 0 account. Just press play.**
+**A private, open-source Android podcast player. 0 ads, 0 trackers, 0 account —
+background playback, variable speed, offline downloads & Android Auto, all on
+your phone.**
 
 Most podcast apps make you the product: ads between episodes, trackers logging
 every tap, an account before you can listen. Ondes does none of that. Search a
