@@ -20,8 +20,10 @@ class SnackbarController @Inject constructor() {
     // An application-lifetime scope for undo work. A ViewModel's own scope is
     // cancelled the moment its screen is popped, so an "Undo" tapped right after
     // navigating back would silently do nothing (issue P1-19); running it here
-    // decouples the reversal from the originating screen.
-    private val undoScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    // decouples the reversal from the originating screen. It uses the main
+    // dispatcher (like a viewModelScope) — the repository calls it launches switch
+    // to IO themselves — which also keeps it drivable by the test scheduler.
+    private val undoScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     data class Message(
         val text: String,
