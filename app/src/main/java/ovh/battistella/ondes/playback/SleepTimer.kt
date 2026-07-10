@@ -50,13 +50,22 @@ class SleepTimer @Inject constructor(
         job = scope.launch {
             playbackConnection.state.collect { state ->
                 val current = state.currentEpisodeId
-                val nearEnd = current == targetId &&
-                    state.durationMs > 0 &&
-                    state.positionMs >= state.durationMs - END_THRESHOLD_MS
-                // Either the episode played out / auto-advanced, or it is about to.
-                if (current != targetId || nearEnd) {
-                    playbackConnection.pause()
-                    cancel()
+                when {
+                    // Already auto-advanced past the target: the service marked it
+                    // finished on the transition, so just stop the next episode.
+                    current != targetId -> {
+                        playbackConnection.pause()
+                        cancel()
+                    }
+                    // About to hit the end. Stopping here is a beat early, so mark
+                    // the episode finished ourselves — the natural end-of-media
+                    // event never fires once we pause. The threshold scales with
+                    // speed so a fast playhead can't step over the window.
+                    SleepTimerLogic.isNearEnd(state.positionMs, state.durationMs, state.speed) -> {
+                        playbackConnection.finishCurrentEpisode()
+                        playbackConnection.pause()
+                        cancel()
+                    }
                 }
             }
         }
@@ -67,9 +76,5 @@ class SleepTimer @Inject constructor(
         job = null
         _remainingMs.value = 0
         _endOfEpisodeArmed.value = false
-    }
-
-    private companion object {
-        const val END_THRESHOLD_MS = 1_500L
     }
 }
