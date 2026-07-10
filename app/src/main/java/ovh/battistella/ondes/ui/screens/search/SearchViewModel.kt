@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ovh.battistella.ondes.R
+import ovh.battistella.ondes.common.SnackbarController
 import ovh.battistella.ondes.data.remote.PodcastSearchResult
 import ovh.battistella.ondes.data.remote.PodcastTheme
 import ovh.battistella.ondes.data.remote.PodcastThemes
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -36,6 +38,7 @@ data class SearchUiState(
 class SearchViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: PodcastRepository,
+    private val snackbar: SnackbarController,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SearchUiState())
@@ -50,6 +53,14 @@ class SearchViewModel @Inject constructor(
     init {
         // Open Discover already proposing the top shows from the first theme.
         _state.value.themes.firstOrNull()?.let(::selectTheme)
+        // Keep the "Subscribed" state of every result row in sync with the actual
+        // subscriptions, so an already-subscribed show isn't offered again
+        // (issue P1-17).
+        viewModelScope.launch {
+            repository.observeSubscriptions().collect { subs ->
+                _state.update { it.copy(subscribedFeeds = subs.map { p -> p.feedUrl }.toSet()) }
+            }
+        }
     }
 
     fun onQueryChange(query: String) {
@@ -125,17 +136,13 @@ class SearchViewModel @Inject constructor(
 
     fun subscribe(result: PodcastSearchResult) {
         viewModelScope.launch {
-            // Only flip the row to "Subscribed" if the feed actually fetched;
-            // otherwise surface the error instead of silently faking success.
-            if (repository.subscribe(result.feedUrl).isSuccess) {
-                _state.value = _state.value.copy(
-                    subscribedFeeds = _state.value.subscribedFeeds + result.feedUrl,
-                    error = null,
-                )
-            } else {
-                _state.value = _state.value.copy(
-                    error = context.getString(R.string.search_feed_error),
-                )
+            // A subscribe failure is surfaced as a transient snackbar, not the
+            // full-screen `error` state: on the blank-query Browse landing that
+            // error replaced the whole UI with a "Try again" that calls search()
+            // and early-returns on the empty query — trapping the user (P1-18).
+            // Success is reflected by the subscriptions collector in init.
+            if (repository.subscribe(result.feedUrl).isFailure) {
+                snackbar.show(context.getString(R.string.search_feed_error))
             }
         }
     }

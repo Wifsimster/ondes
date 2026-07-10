@@ -43,6 +43,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         maybeRequestNotificationPermission()
         pendingFeedUrl = intent?.getStringExtra(NewEpisodeNotifier.EXTRA_OPEN_FEED_URL)
+        // Consume the extra so a config-change recreation (rotation) doesn't
+        // re-read it and push a duplicate podcast onto the back stack (issue P1-15).
+        intent?.removeExtra(NewEpisodeNotifier.EXTRA_OPEN_FEED_URL)
         setContent {
             val settings by mainViewModel.settings.collectAsStateWithLifecycle()
             val darkTheme = when (settings.themeMode) {
@@ -76,6 +79,8 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.getStringExtra(NewEpisodeNotifier.EXTRA_OPEN_FEED_URL)?.let { pendingFeedUrl = it }
+        // Consumed — don't let it survive to a later recreation and re-fire.
+        intent.removeExtra(NewEpisodeNotifier.EXTRA_OPEN_FEED_URL)
     }
 
     private fun maybeRequestNotificationPermission() {

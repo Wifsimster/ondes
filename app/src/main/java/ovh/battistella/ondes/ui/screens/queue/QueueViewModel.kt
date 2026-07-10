@@ -52,12 +52,11 @@ class QueueViewModel @Inject constructor(
         val previousOrder = queue.value.map { it.id }
         viewModelScope.launch {
             repository.removeFromQueue(episode.id)
-            snackbar.show(
+            snackbar.showUndo(
                 text = context.getString(R.string.removed_from_queue),
                 actionLabel = context.getString(R.string.undo),
-                onAction = {
-                    viewModelScope.launch { repository.setQueueOrder(previousOrder) }
-                },
+                // App-scoped so Undo works even after the Queue screen is gone (P1-19).
+                action = { repository.setQueueOrder(previousOrder) },
             )
         }
     }
