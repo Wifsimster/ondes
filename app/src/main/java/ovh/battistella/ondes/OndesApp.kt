@@ -8,6 +8,7 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import ovh.battistella.ondes.data.settings.SettingsRepository
+import ovh.battistella.ondes.download.DownloadManager
 import ovh.battistella.ondes.download.DownloadNotifications
 import ovh.battistella.ondes.sync.FeedRefreshScheduler
 import ovh.battistella.ondes.sync.NewEpisodeNotifier
@@ -26,6 +27,7 @@ class OndesApp : Application(), Configuration.Provider, ImageLoaderFactory {
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var okHttpClient: OkHttpClient
+    @Inject lateinit var downloadManager: DownloadManager
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -57,6 +59,9 @@ class OndesApp : Application(), Configuration.Provider, ImageLoaderFactory {
         NewEpisodeNotifier.createChannel(this)
         DownloadNotifications.createChannel(this)
         scheduleBackgroundRefresh()
+        // Clear any downloaded audio no episode references any more (unsubscribed
+        // podcasts, cancelled-at-the-finish strands, stale .part files).
+        downloadManager.sweepOrphans()
     }
 
     /** Honour the saved background-refresh preference on every launch. */
