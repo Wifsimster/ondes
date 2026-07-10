@@ -17,7 +17,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -33,14 +32,6 @@ class EpisodeDownloadWorker @AssistedInject constructor(
     private val repository: PodcastRepository,
     private val client: OkHttpClient,
 ) : CoroutineWorker(appContext, params) {
-
-    /**
-     * The in-flight HTTP call, so [onStopped] can cancel it and unblock the
-     * streaming read the instant WorkManager stops us (Wi-Fi lost, user cancel).
-     * Without this the blocking read would keep pulling bytes over metered data
-     * after a "stop" (issue P1-12).
-     */
-    @Volatile private var activeCall: Call? = null
 
     override suspend fun doWork(): Result {
         val episodeId = inputData.getString(KEY_EPISODE_ID) ?: return Result.failure()
@@ -82,10 +73,9 @@ class EpisodeDownloadWorker @AssistedInject constructor(
                 Result.failure()
             } catch (io: IOException) {
                 // A dropped connection is transient. Drop the partial first, then
-                // distinguish a genuine network failure from a stop: if we were
-                // cancelled (onStopped cancels the Call, surfacing here as an
-                // IOException), ensureActive() rethrows CancellationException rather
-                // than lying FAILED (issues P1-11, P1-12).
+                // distinguish a genuine network failure from a stop: if the worker
+                // was stopped, ensureActive() rethrows CancellationException rather
+                // than recording a misleading FAILED (issues P1-11, P1-12).
                 part.delete()
                 coroutineContext.ensureActive()
                 if (runAttemptCount < MAX_ATTEMPTS) {
@@ -99,8 +89,6 @@ class EpisodeDownloadWorker @AssistedInject constructor(
                 part.delete()
                 repository.updateDownload(episodeId, DownloadState.FAILED, 0, null)
                 Result.failure()
-            } finally {
-                activeCall = null
             }
         }
     }
@@ -112,9 +100,7 @@ class EpisodeDownloadWorker @AssistedInject constructor(
      * download (issue P0-5).
      */
     private suspend fun streamToPart(url: String, part: File, episodeId: String) {
-        val call = client.newCall(Request.Builder().url(url).build())
-        activeCall = call
-        call.execute().use { response ->
+        client.newCall(Request.Builder().url(url).build()).execute().use { response ->
             if (!response.isSuccessful) {
                 if (response.isTransient()) throw IOException("transient HTTP ${response.code}")
                 throw PermanentHttpException(response.code)
@@ -127,8 +113,11 @@ class EpisodeDownloadWorker @AssistedInject constructor(
                 FileOutputStream(part).use { output ->
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
-                        // Cooperative cancellation between chunks; onStopped() also
-                        // cancels the Call to unblock a read stuck on the socket.
+                        // Cooperative cancellation: CoroutineWorker cancels this
+                        // coroutine when WorkManager stops the job, so we stop
+                        // pulling bytes at the next chunk boundary rather than
+                        // streaming on over metered data. A fully stalled socket is
+                        // backstopped by the OkHttp read timeout.
                         coroutineContext.ensureActive()
                         val read = input.read(buffer)
                         if (read == -1) break
@@ -163,12 +152,6 @@ class EpisodeDownloadWorker @AssistedInject constructor(
             part.copyTo(target, overwrite = true)
             part.delete()
         }
-    }
-
-    override fun onStopped() {
-        // Unblock any read parked on the socket so cancellation takes effect at
-        // once instead of after the next 64 KiB arrives.
-        activeCall?.cancel()
     }
 
     private fun foregroundInfo(): ForegroundInfo {
