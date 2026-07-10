@@ -53,13 +53,15 @@ class SearchViewModel @Inject constructor(
     init {
         // Open Discover already proposing the top shows from the first theme.
         _state.value.themes.firstOrNull()?.let(::selectTheme)
-        // Keep the "Subscribed" state of every result row in sync with the actual
-        // subscriptions, so an already-subscribed show isn't offered again
-        // (issue P1-17).
+        // Reflect the shows already subscribed when Search opens, so they aren't
+        // offered "Subscribe" again (issue P1-17). Read once rather than collecting
+        // the subscriptions Flow live: a live table observer re-enters a feed
+        // refresh's Room transaction (subscribing inserts inside one), which the
+        // test harness's inline executor surfaces as an IllegalStateException.
+        // Subscribes made from this screen keep the set current below.
         viewModelScope.launch {
-            repository.observeSubscriptions().collect { subs ->
-                _state.update { it.copy(subscribedFeeds = subs.map { p -> p.feedUrl }.toSet()) }
-            }
+            val feeds = repository.getSubscribedFeedUrlsOnce()
+            _state.update { it.copy(subscribedFeeds = it.subscribedFeeds + feeds) }
         }
     }
 
@@ -140,8 +142,9 @@ class SearchViewModel @Inject constructor(
             // full-screen `error` state: on the blank-query Browse landing that
             // error replaced the whole UI with a "Try again" that calls search()
             // and early-returns on the empty query — trapping the user (P1-18).
-            // Success is reflected by the subscriptions collector in init.
-            if (repository.subscribe(result.feedUrl).isFailure) {
+            if (repository.subscribe(result.feedUrl).isSuccess) {
+                _state.update { it.copy(subscribedFeeds = it.subscribedFeeds + result.feedUrl) }
+            } else {
                 snackbar.show(context.getString(R.string.search_feed_error))
             }
         }

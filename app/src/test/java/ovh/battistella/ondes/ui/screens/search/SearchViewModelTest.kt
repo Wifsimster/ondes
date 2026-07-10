@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -38,7 +39,11 @@ class SearchViewModelTest {
 
     private fun viewModel(): SearchViewModel {
         db = TestSupport.inMemoryDb()
-        val repo = TestSupport.repository(db, mainDispatcher.dispatcher, rss = rss, search = search)
+        // Unconfined IO so repository work — including the refresh's Room
+        // withTransaction — completes eagerly inline rather than depending on the
+        // StandardTestDispatcher's virtual clock (which room-ktx's transaction
+        // dispatcher doesn't advance under a detached launch). Mirrors SearchScreenTest.
+        val repo = TestSupport.repository(db, Dispatchers.Unconfined, rss = rss, search = search)
         return SearchViewModel(context, repo, SnackbarController())
     }
 
