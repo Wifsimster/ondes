@@ -9,6 +9,7 @@ import ovh.battistella.ondes.data.settings.SettingsRepository
 import ovh.battistella.ondes.download.DownloadManager
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 
 /**
@@ -41,8 +42,19 @@ class FeedRefreshWorker @AssistedInject constructor(
                 NewEpisodeNotifier.notify(appContext, batches = newEpisodes)
             }
             Result.success()
+        } catch (c: CancellationException) {
+            // A stop (e.g. constraints lost) is not a failure — never re-run it as
+            // if the refresh itself errored (issue P1-13).
+            throw c
         } catch (t: Throwable) {
-            Result.retry()
+            // Give the network a few backed-off retries, then stop so a persistently
+            // failing feed doesn't retry forever.
+            if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
         }
+    }
+
+    private companion object {
+        /** Backed-off retries before a failing refresh cycle gives up until next tick. */
+        const val MAX_ATTEMPTS = 3
     }
 }

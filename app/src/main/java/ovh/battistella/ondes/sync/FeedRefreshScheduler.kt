@@ -28,7 +28,10 @@ object FeedRefreshScheduler {
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
+            // UPDATE (not KEEP) so a changed interval or constraint from an app
+            // update actually takes effect instead of being frozen at whatever was
+            // first scheduled (issue P2).
+            ExistingPeriodicWorkPolicy.UPDATE,
             request,
         )
     }

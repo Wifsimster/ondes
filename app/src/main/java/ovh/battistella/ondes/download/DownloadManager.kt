@@ -20,6 +20,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -30,41 +31,53 @@ class DownloadManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: PodcastRepository,
     private val snackbar: SnackbarController,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    @Volatile private var wifiOnly: Boolean = false
-
-    init {
-        scope.launch { settingsRepository.settings.collect { wifiOnly = it.wifiOnlyDownloads } }
-    }
-
     fun enqueue(episodeId: String) {
-        scope.launch { repository.updateDownload(episodeId, DownloadState.QUEUED, 0, null) }
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
-            .build()
-        val request = OneTimeWorkRequestBuilder<EpisodeDownloadWorker>()
-            .setInputData(workDataOf(EpisodeDownloadWorker.KEY_EPISODE_ID to episodeId))
-            .setConstraints(constraints)
-            // Expedited so a user-triggered download starts promptly and runs as a
-            // foreground worker (less likely to be OS-killed mid-stream); falls back
-            // to a normal request when the app is out of expedited quota.
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .setBackoffCriteria(
-                BackoffPolicy.EXPONENTIAL,
-                WorkRequest.MIN_BACKOFF_MILLIS,
-                TimeUnit.MILLISECONDS,
-            )
-            .build()
-        WorkManager.getInstance(context)
-            .enqueueUniqueWork(workName(episodeId), ExistingWorkPolicy.KEEP, request)
+        scope.launch {
+            repository.updateDownload(episodeId, DownloadState.QUEUED, 0, null)
+            // Read the Wi-Fi-only preference fresh, per enqueue, rather than off a
+            // cached field populated by an async collect. That field could still
+            // hold its default when WorkManager cold-starts the process for an
+            // auto-download, silently downloading over metered data against the
+            // user's explicit choice (issue P0-6).
+            val wifiOnly = settingsRepository.settings.first().wifiOnlyDownloads
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
+                .build()
+            val request = OneTimeWorkRequestBuilder<EpisodeDownloadWorker>()
+                .setInputData(workDataOf(EpisodeDownloadWorker.KEY_EPISODE_ID to episodeId))
+                .setConstraints(constraints)
+                // Expedited so a user-triggered download starts promptly and runs as
+                // a foreground worker (less likely to be OS-killed mid-stream); falls
+                // back to a normal request when the app is out of expedited quota.
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .setBackoffCriteria(
+                    BackoffPolicy.EXPONENTIAL,
+                    WorkRequest.MIN_BACKOFF_MILLIS,
+                    TimeUnit.MILLISECONDS,
+                )
+                .build()
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork(workName(episodeId), ExistingWorkPolicy.KEEP, request)
+        }
     }
 
     fun cancel(episodeId: String) {
         WorkManager.getInstance(context).cancelUniqueWork(workName(episodeId))
-        scope.launch { repository.updateDownload(episodeId, DownloadState.NONE, 0, null) }
+        scope.launch {
+            repository.updateDownload(episodeId, DownloadState.NONE, 0, null)
+            // Remove any bytes already on disk. Before the download completes there
+            // is no localFilePath in the DB, so delete the deterministic target and
+            // its partial sibling — otherwise a cancelled-just-after-finish download
+            // stranded its file with no way to remove it (issue P1-14).
+            runCatching {
+                DownloadFiles.target(context, episodeId).delete()
+                DownloadFiles.partFile(context, episodeId).delete()
+            }
+        }
     }
 
     /**
@@ -74,6 +87,12 @@ class DownloadManager @Inject constructor(
      */
     fun deleteDownload(episodeId: String, localPath: String?, showUndo: Boolean = true) {
         localPath?.let { runCatching { File(it).delete() } }
+        // Also clear the deterministic artifacts, covering a stored path that has
+        // drifted from the current naming scheme and any leftover partial file.
+        runCatching {
+            DownloadFiles.target(context, episodeId).delete()
+            DownloadFiles.partFile(context, episodeId).delete()
+        }
         scope.launch { repository.updateDownload(episodeId, DownloadState.NONE, 0, null) }
         if (showUndo) {
             // Deleting only removes the local file; "Undo" simply re-downloads it.
@@ -82,6 +101,27 @@ class DownloadManager @Inject constructor(
                 actionLabel = context.getString(R.string.undo),
                 onAction = { enqueue(episodeId) },
             )
+        }
+    }
+
+    /**
+     * Delete audio files in the downloads directory that no episode still points
+     * at — cancelled-at-the-finish-line strands, files from unsubscribed podcasts,
+     * and stale `.part` files from downloads killed mid-stream. Run once at
+     * startup; downloads aren't active yet, so a leftover `.part` is always junk
+     * (issue P1-14).
+     */
+    fun sweepOrphans() {
+        scope.launch {
+            val dir = DownloadFiles.dir(context)
+            val files = dir.listFiles() ?: return@launch
+            val kept = repository.getDownloadedOnce()
+                .mapNotNull { it.localFilePath }
+                .toHashSet()
+            files.asSequence()
+                .filter { it.isFile && DownloadFiles.isDownloadArtifact(it) }
+                .filter { it.absolutePath !in kept }
+                .forEach { runCatching { it.delete() } }
         }
     }
 

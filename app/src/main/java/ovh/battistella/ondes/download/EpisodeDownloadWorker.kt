@@ -13,11 +13,18 @@ import ovh.battistella.ondes.data.local.DownloadState
 import ovh.battistella.ondes.data.repository.PodcastRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import kotlin.coroutines.coroutineContext
 
 @HiltWorker
 class EpisodeDownloadWorker @AssistedInject constructor(
@@ -26,6 +33,14 @@ class EpisodeDownloadWorker @AssistedInject constructor(
     private val repository: PodcastRepository,
     private val client: OkHttpClient,
 ) : CoroutineWorker(appContext, params) {
+
+    /**
+     * The in-flight HTTP call, so [onStopped] can cancel it and unblock the
+     * streaming read the instant WorkManager stops us (Wi-Fi lost, user cancel).
+     * Without this the blocking read would keep pulling bytes over metered data
+     * after a "stop" (issue P1-12).
+     */
+    @Volatile private var activeCall: Call? = null
 
     override suspend fun doWork(): Result {
         val episodeId = inputData.getString(KEY_EPISODE_ID) ?: return Result.failure()
@@ -38,70 +53,122 @@ class EpisodeDownloadWorker @AssistedInject constructor(
 
         repository.updateDownload(episodeId, DownloadState.DOWNLOADING, 0, null)
 
-        val dir = File(applicationContext.filesDir, "downloads").apply { mkdirs() }
-        val target = File(dir, sanitize(episodeId) + ".audio")
+        val target = DownloadFiles.target(applicationContext, episodeId)
+        val part = DownloadFiles.partFile(applicationContext, episodeId)
+        part.parentFile?.mkdirs()
 
-        return try {
-            val request = Request.Builder().url(episode.audioUrl).build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    // 5xx / 429 are transient — let WorkManager back off and retry.
-                    return if (response.isTransient() && runAttemptCount < MAX_ATTEMPTS) {
-                        repository.updateDownload(episodeId, DownloadState.QUEUED, 0, null)
-                        Result.retry()
-                    } else {
-                        repository.updateDownload(episodeId, DownloadState.FAILED, 0, null)
-                        Result.failure()
-                    }
-                }
-                val body = response.body ?: run {
+        // All the blocking socket/file I/O runs on Dispatchers.IO — the default
+        // CoroutineWorker dispatcher is Dispatchers.Default, whose small pool
+        // should not be tied up on long streaming reads (issue P1-12).
+        return withContext(Dispatchers.IO) {
+            try {
+                streamToPart(episode.audioUrl, part, episodeId)
+                promote(part, target)
+                repository.updateDownload(
+                    episodeId, DownloadState.DOWNLOADED, 100, target.absolutePath,
+                )
+                Result.success()
+            } catch (c: CancellationException) {
+                // Cooperative stop (constraint lost / user cancel). Drop the partial
+                // file — we don't resume — and let WorkManager own the outcome. A
+                // user-initiated cancel is finalised in DownloadManager.cancel();
+                // don't write a misleading FAILED here (issue P1-11).
+                part.delete()
+                throw c
+            } catch (p: PermanentHttpException) {
+                // A 4xx status — retrying the same request won't help, so fail fast.
+                part.delete()
+                repository.updateDownload(episodeId, DownloadState.FAILED, 0, null)
+                Result.failure()
+            } catch (io: IOException) {
+                // A dropped connection is transient. Drop the partial first, then
+                // distinguish a genuine network failure from a stop: if we were
+                // cancelled (onStopped cancels the Call, surfacing here as an
+                // IOException), ensureActive() rethrows CancellationException rather
+                // than lying FAILED (issues P1-11, P1-12).
+                part.delete()
+                coroutineContext.ensureActive()
+                if (runAttemptCount < MAX_ATTEMPTS) {
+                    repository.updateDownload(episodeId, DownloadState.QUEUED, 0, null)
+                    Result.retry()
+                } else {
                     repository.updateDownload(episodeId, DownloadState.FAILED, 0, null)
-                    return Result.failure()
+                    Result.failure()
                 }
-                val total = body.contentLength()
-                body.byteStream().use { input ->
-                    FileOutputStream(target).use { output ->
-                        val buffer = ByteArray(64 * 1024)
-                        var downloaded = 0L
-                        var lastReported = -1
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read == -1) break
-                            output.write(buffer, 0, read)
-                            downloaded += read
-                            if (total > 0) {
-                                val pct = ((downloaded * 100) / total).toInt()
-                                if (pct != lastReported && pct % 5 == 0) {
-                                    lastReported = pct
-                                    repository.updateDownload(
-                                        episodeId, DownloadState.DOWNLOADING, pct, null
-                                    )
-                                }
+            } catch (t: Throwable) {
+                part.delete()
+                repository.updateDownload(episodeId, DownloadState.FAILED, 0, null)
+                Result.failure()
+            } finally {
+                activeCall = null
+            }
+        }
+    }
+
+    /**
+     * Stream the response body into [part], reporting progress. Throws on any
+     * non-success HTTP status, and on a truncated body (bytes read ≠
+     * Content-Length) so a clean early close can't masquerade as a complete
+     * download (issue P0-5).
+     */
+    private suspend fun streamToPart(url: String, part: File, episodeId: String) {
+        val call = client.newCall(Request.Builder().url(url).build())
+        activeCall = call
+        call.execute().use { response ->
+            if (!response.isSuccessful) {
+                if (response.isTransient()) throw IOException("transient HTTP ${response.code}")
+                throw PermanentHttpException(response.code)
+            }
+            val body = response.body ?: throw IOException("empty response body")
+            val total = body.contentLength()
+            var downloaded = 0L
+            var lastReported = -1
+            body.byteStream().use { input ->
+                FileOutputStream(part).use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        // Cooperative cancellation between chunks; onStopped() also
+                        // cancels the Call to unblock a read stuck on the socket.
+                        coroutineContext.ensureActive()
+                        val read = input.read(buffer)
+                        if (read == -1) break
+                        output.write(buffer, 0, read)
+                        downloaded += read
+                        if (total > 0) {
+                            val pct = ((downloaded * 100) / total).toInt()
+                            if (pct != lastReported && pct % 5 == 0) {
+                                lastReported = pct
+                                repository.updateDownload(
+                                    episodeId, DownloadState.DOWNLOADING, pct, null,
+                                )
                             }
                         }
                     }
+                    output.flush()
                 }
             }
-            repository.updateDownload(
-                episodeId, DownloadState.DOWNLOADED, 100, target.absolutePath
-            )
-            Result.success()
-        } catch (io: IOException) {
-            // A dropped connection is transient: retry with backoff instead of
-            // failing permanently, until we exhaust the attempt budget.
-            target.delete()
-            if (runAttemptCount < MAX_ATTEMPTS) {
-                repository.updateDownload(episodeId, DownloadState.QUEUED, 0, null)
-                Result.retry()
-            } else {
-                repository.updateDownload(episodeId, DownloadState.FAILED, 0, null)
-                Result.failure()
+            // Guard against a truncated transfer: a clean early close leaves a
+            // short file that must NOT be promoted to a valid download.
+            if (total > 0 && downloaded != total) {
+                throw IOException("truncated download: $downloaded/$total bytes")
             }
-        } catch (t: Throwable) {
-            target.delete()
-            repository.updateDownload(episodeId, DownloadState.FAILED, 0, null)
-            Result.failure()
         }
+    }
+
+    /** Atomically publish the verified partial file as the final download. */
+    private fun promote(part: File, target: File) {
+        target.delete()
+        if (!part.renameTo(target)) {
+            // Rename can fail across some filesystems; fall back to copy+delete.
+            part.copyTo(target, overwrite = true)
+            part.delete()
+        }
+    }
+
+    override fun onStopped() {
+        // Unblock any read parked on the socket so cancellation takes effect at
+        // once instead of after the next 64 KiB arrives.
+        activeCall?.cancel()
     }
 
     private fun foregroundInfo(): ForegroundInfo {
@@ -124,10 +191,10 @@ class EpisodeDownloadWorker @AssistedInject constructor(
         }
     }
 
-    private fun okhttp3.Response.isTransient(): Boolean = code == 429 || code in 500..599
+    private fun Response.isTransient(): Boolean = code == 429 || code in 500..599
 
-    private fun sanitize(id: String): String =
-        id.hashCode().toString().replace("-", "n")
+    /** A non-retryable HTTP status (typically 4xx); fail fast instead of backing off. */
+    private class PermanentHttpException(code: Int) : IOException("HTTP $code")
 
     companion object {
         const val KEY_EPISODE_ID = "episode_id"
