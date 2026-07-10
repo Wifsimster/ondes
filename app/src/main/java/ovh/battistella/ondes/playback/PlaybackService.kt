@@ -139,7 +139,14 @@ class PlaybackService : MediaLibraryService() {
     /** PendingIntent that brings [MainActivity] to the foreground when the media notification is tapped. */
     private fun openAppIntent(): PendingIntent {
         val intent = Intent(this, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            // NEW_TASK so the tap opens the app even when its task no longer
+            // exists (process killed while the media notification lingers);
+            // SINGLE_TOP reuses the running instance. Mirrors NewEpisodeNotifier.
+            .addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            )
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         return PendingIntent.getActivity(this, 0, intent, flags)
     }
