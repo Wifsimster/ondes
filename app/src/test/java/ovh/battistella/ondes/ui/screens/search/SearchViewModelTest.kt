@@ -18,6 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import ovh.battistella.ondes.common.SnackbarController
 import ovh.battistella.ondes.data.local.OndesDatabase
 import ovh.battistella.ondes.data.remote.PodcastSearchService
 import ovh.battistella.ondes.data.remote.RssParser
@@ -38,7 +39,7 @@ class SearchViewModelTest {
     private fun viewModel(): SearchViewModel {
         db = TestSupport.inMemoryDb()
         val repo = TestSupport.repository(db, mainDispatcher.dispatcher, rss = rss, search = search)
-        return SearchViewModel(context, repo)
+        return SearchViewModel(context, repo, SnackbarController())
     }
 
     @After fun tearDown() {
@@ -119,6 +120,32 @@ class SearchViewModelTest {
         // And it really landed in the database.
         assertEquals("Pasted Show", db.podcastDao().getPodcast("https://example.com/feed.xml")?.title)
     }
+
+    @Test
+    fun `already-subscribed shows are reflected in subscribedFeeds`() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = viewModel()
+            db.podcastDao().upsert(TestSupport.podcast(feedUrl = "https://sub.example/feed"))
+            advanceUntilIdle()
+
+            // Derived from the repository, so a row already subscribed elsewhere
+            // renders as "Subscribed" rather than offering Subscribe again (P1-17).
+            assertTrue(vm.state.value.subscribedFeeds.contains("https://sub.example/feed"))
+        }
+
+    @Test
+    fun `a failed subscribe from the browse landing does not replace the screen with an error`() =
+        runTest(mainDispatcher.dispatcher) {
+            every { rss.fetchAndParse(any()) } throws RuntimeException("offline")
+            val vm = viewModel()
+
+            vm.subscribe(TestSupport.searchResult(feedUrl = "https://x.example/feed"))
+            advanceUntilIdle()
+
+            // The failure is a snackbar, not the full-screen error state that would
+            // trap the user on the blank-query Browse landing (P1-18).
+            assertNull(vm.state.value.error)
+        }
 
     @Test
     fun `selecting a theme loads its proposed shows`() = runTest(mainDispatcher.dispatcher) {

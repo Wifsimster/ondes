@@ -1,7 +1,6 @@
 package ovh.battistella.ondes.ui.screens.podcast
 
 import android.content.Context
-import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -35,7 +34,9 @@ class PodcastViewModel @Inject constructor(
     private val snackbar: SnackbarController,
 ) : ViewModel() {
 
-    val feedUrl: String = Uri.decode(checkNotNull(savedStateHandle.get<String>("feedUrl")))
+    // Navigation Compose already URI-decodes path arguments once; decoding again
+    // here corrupted feed URLs containing percent-escapes (issue P0-10).
+    val feedUrl: String = checkNotNull(savedStateHandle.get<String>("feedUrl"))
 
     val podcast: StateFlow<PodcastEntity?> = repository.observePodcast(feedUrl)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -90,10 +91,12 @@ class PodcastViewModel @Inject constructor(
             val current = podcast.value
             if (current?.subscribed == true) {
                 repository.unsubscribe(feedUrl)
-                snackbar.show(
+                snackbar.showUndo(
                     text = context.getString(R.string.unsubscribed),
                     actionLabel = context.getString(R.string.undo),
-                    onAction = { viewModelScope.launch { repository.subscribe(feedUrl) } },
+                    // App-scoped: still works after the user navigates back off this
+                    // screen (issue P1-19).
+                    action = { repository.subscribe(feedUrl) },
                 )
             } else {
                 if (repository.subscribe(feedUrl).isFailure) {

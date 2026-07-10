@@ -80,12 +80,13 @@ class LibraryViewModel @Inject constructor(
         clearSelection()
         viewModelScope.launch {
             repository.unsubscribeAll(targets)
-            snackbar.show(
+            snackbar.showUndo(
                 text = context.resources.getQuantityString(
                     R.plurals.unsubscribed_count, targets.size, targets.size,
                 ),
                 actionLabel = context.getString(R.string.undo),
-                onAction = { viewModelScope.launch { repository.resubscribeAll(targets) } },
+                // App-scoped so Undo survives leaving the Library screen (P1-19).
+                action = { repository.resubscribeAll(targets) },
             )
         }
     }

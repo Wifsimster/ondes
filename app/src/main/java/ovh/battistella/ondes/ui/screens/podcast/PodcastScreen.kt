@@ -73,6 +73,7 @@ import ovh.battistella.ondes.ui.theme.OndesTheme
 fun PodcastScreen(
     onBack: () -> Unit,
     onOpenPlayer: () -> Unit,
+    contentPadding: PaddingValues = PaddingValues(),
     viewModel: PodcastViewModel = hiltViewModel(),
 ) {
     val podcast by viewModel.podcast.collectAsStateWithLifecycle()
@@ -131,7 +132,13 @@ fun PodcastScreen(
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(
-                bottom = padding.calculateBottomPadding(),
+                // Clear whichever is taller: this screen's own bottom inset or the
+                // root's (which includes the mini-player). Both already count the
+                // nav bar, so take the max rather than summing them (issue P1-16).
+                bottom = maxOf(
+                    padding.calculateBottomPadding(),
+                    contentPadding.calculateBottomPadding(),
+                ),
             ),
         ) {
             item {

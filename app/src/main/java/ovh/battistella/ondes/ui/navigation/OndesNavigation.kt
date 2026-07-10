@@ -77,7 +77,8 @@ fun OndesRoot(
             val result = snackbarHostState.showSnackbar(
                 message = message.text,
                 actionLabel = message.actionLabel,
-                duration = SnackbarDuration.Short,
+                // Undo prompts stay long enough to actually be tapped.
+                duration = if (message.isUndo) SnackbarDuration.Long else SnackbarDuration.Short,
                 withDismissAction = message.actionLabel == null,
             )
             if (result == SnackbarResult.ActionPerformed) message.onAction?.invoke()
@@ -110,7 +111,7 @@ fun OndesRoot(
                         state = playerState,
                         onPlayPause = playerViewModel::playPause,
                         onForward = playerViewModel::seekForward,
-                        onClick = { navController.navigate(Routes.PLAYER) },
+                        onClick = { navController.navigate(Routes.PLAYER) { launchSingleTop = true } },
                         onStop = playerViewModel::stop,
                         modifier = if (isTopLevel) Modifier else Modifier.navigationBarsPadding(),
                     )
@@ -134,23 +135,23 @@ fun OndesRoot(
         ) {
             composable(Routes.HOME) {
                 HomeScreen(
-                    onOpenPlayer = { navController.navigate(Routes.PLAYER) },
+                    onOpenPlayer = { navController.navigate(Routes.PLAYER) { launchSingleTop = true } },
                     onBrowse = openSearch,
-                    onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                    onOpenSettings = { navController.navigate(Routes.SETTINGS) { launchSingleTop = true } },
                     contentPadding = innerPadding,
                 )
             }
             composable(Routes.QUEUE) {
                 QueueScreen(
-                    onOpenPlayer = { navController.navigate(Routes.PLAYER) },
+                    onOpenPlayer = { navController.navigate(Routes.PLAYER) { launchSingleTop = true } },
                     onBrowse = openSearch,
                     contentPadding = innerPadding,
                 )
             }
             composable(Routes.LIBRARY) {
                 LibraryScreen(
-                    onOpenPodcast = { navController.navigate(Routes.podcast(it)) },
-                    onOpenPlayer = { navController.navigate(Routes.PLAYER) },
+                    onOpenPodcast = { navController.navigate(Routes.podcast(it)) { launchSingleTop = true } },
+                    onOpenPlayer = { navController.navigate(Routes.PLAYER) { launchSingleTop = true } },
                     onBrowse = openSearch,
                     contentPadding = innerPadding,
                 )
@@ -158,7 +159,7 @@ fun OndesRoot(
             composable(Routes.SEARCH) {
                 SearchScreen(
                     contentPadding = innerPadding,
-                    onOpenPodcast = { navController.navigate(Routes.podcast(it)) },
+                    onOpenPodcast = { navController.navigate(Routes.podcast(it)) { launchSingleTop = true } },
                 )
             }
             composable(Routes.SETTINGS) {
@@ -170,7 +171,10 @@ fun OndesRoot(
             composable(Routes.PODCAST) {
                 PodcastScreen(
                     onBack = { navController.popBackStack() },
-                    onOpenPlayer = { navController.navigate(Routes.PLAYER) },
+                    onOpenPlayer = { navController.navigate(Routes.PLAYER) { launchSingleTop = true } },
+                    // The root's inset (mini-player + nav bar) must reach the list
+                    // or the last episode rows sit hidden behind the mini-player.
+                    contentPadding = innerPadding,
                 )
             }
             // The player is a "now playing" surface — slide it up from the bottom.

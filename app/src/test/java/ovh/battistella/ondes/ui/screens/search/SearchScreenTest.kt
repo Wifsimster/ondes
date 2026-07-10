@@ -15,6 +15,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import ovh.battistella.ondes.R
+import ovh.battistella.ondes.common.SnackbarController
 import ovh.battistella.ondes.data.local.OndesDatabase
 import ovh.battistella.ondes.data.remote.PodcastSearchService
 import ovh.battistella.ondes.data.remote.RssParser
@@ -45,7 +46,7 @@ class SearchScreenTest {
         db = TestSupport.inMemoryDb()
         // Unconfined IO so repository work completes eagerly inside the test.
         val repo = TestSupport.repository(db, Dispatchers.Unconfined, rss = rss, search = search)
-        return SearchViewModel(context, repo)
+        return SearchViewModel(context, repo, SnackbarController())
     }
 
     @After fun tearDown() {
