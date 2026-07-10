@@ -20,6 +20,7 @@ import ovh.battistella.ondes.common.SnackbarController
 import ovh.battistella.ondes.data.local.OndesDatabase
 import ovh.battistella.ondes.data.local.QueueItemEntity
 import ovh.battistella.ondes.data.repository.PodcastRepository
+import ovh.battistella.ondes.playback.NowPlaying
 import ovh.battistella.ondes.playback.PlaybackConnection
 import ovh.battistella.ondes.playback.PlayerUiState
 import ovh.battistella.ondes.testing.MainDispatcherRule
@@ -100,6 +101,23 @@ class QueueViewModelTest {
         messages.first().onAction!!.invoke()
         advanceUntilIdle()
         assertEquals(listOf("ep-1", "ep-2", "ep-3"), db.queueDao().getOrderedIds())
+    }
+
+    @Test
+    fun `nowPlaying ignores position-only ticks`() = runTest(mainDispatcher.dispatcher) {
+        val vm = build()
+        val seen = mutableListOf<NowPlaying>()
+        backgroundScope.launch { vm.nowPlaying.collect { seen += it } }
+        advanceUntilIdle()
+
+        playerFlow.value = PlayerUiState(currentEpisodeId = "ep-1", isPlaying = true, positionMs = 1_000)
+        advanceUntilIdle()
+        // Same episode + play state, only the position moved: the 2 Hz ticker.
+        playerFlow.value = PlayerUiState(currentEpisodeId = "ep-1", isPlaying = true, positionMs = 9_000)
+        advanceUntilIdle()
+
+        // The position-only change must not produce a second now-playing emission.
+        assertEquals(listOf(NowPlaying(), NowPlaying("ep-1", isPlaying = true)), seen)
     }
 
     @Test

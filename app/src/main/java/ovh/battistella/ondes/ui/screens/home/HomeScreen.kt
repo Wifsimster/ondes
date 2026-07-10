@@ -51,7 +51,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val playerState by viewModel.playerState.collectAsStateWithLifecycle()
+    val nowPlaying by viewModel.nowPlaying.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -115,8 +115,8 @@ fun HomeScreen(
                     items(uiState.inProgress, key = { "ip_${it.id}" }) { episode ->
                     EpisodeRow(
                         episode = episode,
-                        isCurrent = playerState.currentEpisodeId == episode.id,
-                        isPlaying = playerState.isPlaying,
+                        isCurrent = nowPlaying.episodeId == episode.id,
+                        isPlaying = nowPlaying.isPlaying,
                         onPlayToggle = { viewModel.playToggle(episode) },
                         onClick = { viewModel.open(episode); onOpenPlayer() },
                         onDownload = { viewModel.download(episode) },
@@ -135,8 +135,8 @@ fun HomeScreen(
             items(uiState.latest, key = { "lt_${it.id}" }) { episode ->
                 EpisodeRow(
                     episode = episode,
-                    isCurrent = playerState.currentEpisodeId == episode.id,
-                    isPlaying = playerState.isPlaying,
+                    isCurrent = nowPlaying.episodeId == episode.id,
+                    isPlaying = nowPlaying.isPlaying,
                     onPlayToggle = { viewModel.playToggle(episode) },
                     onClick = { viewModel.open(episode); onOpenPlayer() },
                     onDownload = { viewModel.download(episode) },

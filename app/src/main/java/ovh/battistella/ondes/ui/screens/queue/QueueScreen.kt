@@ -65,7 +65,7 @@ fun QueueScreen(
     viewModel: QueueViewModel = hiltViewModel(),
 ) {
     val queue by viewModel.queue.collectAsStateWithLifecycle()
-    val playerState by viewModel.playerState.collectAsStateWithLifecycle()
+    val nowPlaying by viewModel.nowPlaying.collectAsStateWithLifecycle()
     var showClearDialog by remember { mutableStateOf(false) }
 
     if (showClearDialog) {
@@ -113,8 +113,8 @@ fun QueueScreen(
                     episode = episode,
                     index = index,
                     lastIndex = queue.lastIndex,
-                    isCurrent = playerState.currentEpisodeId == episode.id,
-                    isPlaying = playerState.isPlaying,
+                    isCurrent = nowPlaying.episodeId == episode.id,
+                    isPlaying = nowPlaying.isPlaying,
                     onPlayToggle = { viewModel.playToggle(episode) },
                     onClick = { viewModel.open(episode); onOpenPlayer() },
                     onMoveUp = { viewModel.moveUp(index) },

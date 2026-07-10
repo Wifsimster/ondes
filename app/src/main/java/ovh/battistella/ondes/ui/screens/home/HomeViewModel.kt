@@ -6,8 +6,8 @@ import ovh.battistella.ondes.data.local.DownloadState
 import ovh.battistella.ondes.data.local.EpisodeEntity
 import ovh.battistella.ondes.data.repository.PodcastRepository
 import ovh.battistella.ondes.download.DownloadManager
+import ovh.battistella.ondes.playback.NowPlaying
 import ovh.battistella.ondes.playback.PlaybackConnection
-import ovh.battistella.ondes.playback.PlayerUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +15,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -43,8 +45,12 @@ class HomeViewModel @Inject constructor(
         HomeUiState(loading = false, inProgress = inProgress, latest = latest)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState(loading = true))
 
-    val playerState: StateFlow<PlayerUiState> = connection.state
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlayerUiState())
+    // Only the current-episode / playing signal drives list rows; dropping the
+    // 2 Hz position ticks here keeps the list from recomposing during playback.
+    val nowPlaying: StateFlow<NowPlaying> = connection.state
+        .map { NowPlaying(it.currentEpisodeId, it.isPlaying) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), NowPlaying())
 
     private val _refreshing = MutableStateFlow(false)
     val refreshing = _refreshing.asStateFlow()

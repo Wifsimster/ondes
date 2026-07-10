@@ -81,7 +81,7 @@ fun PodcastScreen(
     val filteredEpisodes by viewModel.filteredEpisodes.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val unplayedOnly by viewModel.unplayedOnly.collectAsStateWithLifecycle()
-    val playerState by viewModel.playerState.collectAsStateWithLifecycle()
+    val nowPlaying by viewModel.nowPlaying.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -261,8 +261,8 @@ fun PodcastScreen(
             items(filteredEpisodes, key = { it.id }) { episode ->
                 EpisodeRow(
                     episode = episode,
-                    isCurrent = playerState.currentEpisodeId == episode.id,
-                    isPlaying = playerState.isPlaying,
+                    isCurrent = nowPlaying.episodeId == episode.id,
+                    isPlaying = nowPlaying.isPlaying,
                     onPlayToggle = { viewModel.playToggle(episode) },
                     onClick = { viewModel.open(episode); onOpenPlayer() },
                     onDownload = { viewModel.download(episode) },
