@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -45,7 +46,12 @@ class PodcastViewModelTest {
 
     private fun build(): PodcastViewModel {
         db = TestSupport.inMemoryDb()
-        repo = TestSupport.repository(db, mainDispatcher.dispatcher, rss = rss)
+        // Unconfined IO so repository work — including the init refresh's Room
+        // withTransaction — completes eagerly inside the test (room-ktx's
+        // transaction dispatcher isn't advanced by the StandardTestDispatcher's
+        // virtual clock under the detached viewModelScope.launch in init).
+        // Mirrors PodcastScreenTest and SearchViewModelTest.
+        repo = TestSupport.repository(db, Dispatchers.Unconfined, rss = rss)
         connection = TestSupport.mockConnection(playerFlow)
         // The screen's init refreshes the feed; feed it two episodes.
         every { rss.fetchAndParse(feedUrl) } returns TestSupport.parsedFeed(
