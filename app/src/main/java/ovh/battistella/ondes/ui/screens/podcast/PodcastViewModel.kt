@@ -41,9 +41,9 @@ class PodcastViewModel @Inject constructor(
     private val downloadManager: DownloadManager,
     private val snackbar: SnackbarController,
     /**
-     * Injected rather than hard-coded so the screen's off-main-thread work (the
-     * episode filter, the feed refresh) is pinned to the test scheduler instead
-     * of racing it on a real background thread.
+     * Where the episode filter's scan runs. Injected rather than hard-coded so
+     * that work is pinned to the test scheduler instead of racing it on a real
+     * background thread — the same hazard #54 removed from refresh().
      */
     private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
@@ -142,7 +142,12 @@ class PodcastViewModel @Inject constructor(
     }
 
     fun refresh() {
-        viewModelScope.launch(ioDispatcher) {
+        // Plain viewModelScope (Main) on purpose: refreshFeed already does its own
+        // withContext(ioDispatcher), so nothing here blocks the main thread, and
+        // launching on Dispatchers.IO instead put the whole refresh on a real thread
+        // pool that a test's scheduler cannot drive — the init refresh then raced
+        // the assertions. Matches toggleSubscribe/markPlayed below.
+        viewModelScope.launch {
             _refreshing.value = true
             // Tell the user when a manual pull-to-refresh fails instead of just
             // stopping the spinner with no feedback.

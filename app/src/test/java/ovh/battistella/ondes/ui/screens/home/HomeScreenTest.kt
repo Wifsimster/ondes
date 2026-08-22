@@ -43,7 +43,7 @@ class HomeScreenTest {
         db = TestSupport.inMemoryDb()
         repo = TestSupport.repository(db, Dispatchers.Unconfined)
         connection = TestSupport.mockConnection(MutableStateFlow(PlayerUiState()))
-        return HomeViewModel(context, repo, connection, downloadManager, snackbar, Dispatchers.Unconfined)
+        return HomeViewModel(context, repo, connection, downloadManager, snackbar)
     }
 
     @After fun tearDown() {

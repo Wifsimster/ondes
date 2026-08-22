@@ -44,7 +44,7 @@ class HomeViewModelTest {
         db = TestSupport.inMemoryDb()
         repo = TestSupport.repository(db, mainDispatcher.dispatcher)
         connection = TestSupport.mockConnection(playerFlow)
-        return HomeViewModel(context, repo, connection, downloadManager, snackbar, mainDispatcher.dispatcher)
+        return HomeViewModel(context, repo, connection, downloadManager, snackbar)
     }
 
     @After fun tearDown() {
