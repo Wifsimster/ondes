@@ -76,6 +76,7 @@ class DownloadManager @Inject constructor(
             runCatching {
                 DownloadFiles.target(context, episodeId).delete()
                 DownloadFiles.partFile(context, episodeId).delete()
+                DownloadFiles.metaFile(context, episodeId).delete()
             }
         }
     }
@@ -92,6 +93,7 @@ class DownloadManager @Inject constructor(
         runCatching {
             DownloadFiles.target(context, episodeId).delete()
             DownloadFiles.partFile(context, episodeId).delete()
+            DownloadFiles.metaFile(context, episodeId).delete()
         }
         scope.launch { repository.updateDownload(episodeId, DownloadState.NONE, 0, null) }
         if (showUndo) {
@@ -106,10 +108,14 @@ class DownloadManager @Inject constructor(
 
     /**
      * Delete audio files in the downloads directory that no episode still points
-     * at — cancelled-at-the-finish-line strands, files from unsubscribed podcasts,
-     * and stale `.part` files from downloads killed mid-stream. Run once at
-     * startup; downloads aren't active yet, so a leftover `.part` is always junk
-     * (issue P1-14).
+     * at — cancelled-at-the-finish-line strands, files from unsubscribed
+     * podcasts, and `.part`/`.meta` leftovers from downloads that were abandoned
+     * rather than merely interrupted (issue P1-14).
+     *
+     * Partial files belonging to a download that is still QUEUED or DOWNLOADING
+     * are spared: WorkManager will re-run that job and resume from those exact
+     * bytes (opt. 5), so sweeping them would throw away the transfer this
+     * process was killed in the middle of.
      */
     fun sweepOrphans() {
         scope.launch {
@@ -118,9 +124,12 @@ class DownloadManager @Inject constructor(
             val kept = repository.getDownloadedOnce()
                 .mapNotNull { it.localFilePath }
                 .toHashSet()
+            val pendingNames = repository.getPendingDownloadIds()
+                .flatMapTo(HashSet()) { DownloadFiles.partialNames(it) }
             files.asSequence()
                 .filter { it.isFile && DownloadFiles.isDownloadArtifact(it) }
                 .filter { it.absolutePath !in kept }
+                .filterNot { DownloadFiles.isPartialArtifact(it) && it.name in pendingNames }
                 .forEach { runCatching { it.delete() } }
         }
     }

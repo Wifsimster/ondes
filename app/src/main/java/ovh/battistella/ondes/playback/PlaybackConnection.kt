@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -203,6 +204,11 @@ class PlaybackConnection @Inject constructor(
      * Play [episode], resuming from its saved position. When auto-advance is on
      * and a [queue] is supplied, the episodes after it are loaded too so
      * playback flows continuously into the next one.
+     *
+     * Resolving the items touches the filesystem (does this episode have a
+     * downloaded file?) once per episode, so it happens off the main thread —
+     * the whole queue used to be stat'ed inline on the click that started
+     * playback (issue P2).
      */
     fun play(episode: EpisodeEntity, queue: List<EpisodeEntity> = emptyList()) {
         val c = requireController() ?: return
@@ -211,33 +217,13 @@ class PlaybackConnection @Inject constructor(
             c.resume()
             return
         }
-
-        // The requested episode must itself be playable and sits at index 0, so
-        // the start position below always refers to it. If it has no playable
-        // source (no download, no safe http URL) there's nothing to do — don't
-        // hand the player an empty/broken item.
-        val head = MediaItems.playable(episode) ?: return
         val followOn = if (settings.autoAdvance && queue.isNotEmpty()) {
             // Episodes strictly after the requested one, so playback flows on.
-            queue.dropWhile { it.id != episode.id }.drop(1).mapNotNull(MediaItems::playable)
+            queue.dropWhile { it.id != episode.id }.drop(1)
         } else {
             emptyList()
         }
-        val items = listOf(head) + followOn
-
-        c.setMediaItems(items, /* startIndex = */ 0, episode.positionMs.coerceAtLeast(0))
-        c.playbackParameters = PlaybackParameters(settings.defaultSpeed)
-        applySpeedFor(episode.feedUrl)
-        c.prepare()
-        c.play()
-    }
-
-    /** Resolve the per-podcast speed override (falling back to the global default). */
-    private fun applySpeedFor(feedUrl: String) {
-        scope.launch {
-            val speed = repository.getPodcastOnce(feedUrl)?.overrideSpeed ?: settings.defaultSpeed
-            controller?.playbackParameters = PlaybackParameters(speed)
-        }
+        loadAndPlay(episode, followOn)
     }
 
     /**
@@ -251,15 +237,37 @@ class PlaybackConnection @Inject constructor(
             c.resume()
             return
         }
-        // The start episode is pinned to index 0 so its saved position applies to
-        // it; later queue items follow. Nothing playable at the start = no-op.
-        val head = MediaItems.playable(start) ?: return
-        val items = listOf(head) + queue.drop(startIndex + 1).mapNotNull(MediaItems::playable)
-        c.setMediaItems(items, /* startIndex = */ 0, start.positionMs.coerceAtLeast(0))
-        c.playbackParameters = PlaybackParameters(settings.defaultSpeed)
-        applySpeedFor(start.feedUrl)
-        c.prepare()
-        c.play()
+        loadAndPlay(start, queue.drop(startIndex + 1))
+    }
+
+    /**
+     * Resolve [head] and [followOn] into media items off the main thread, then
+     * start playback. [head] is pinned to index 0 so the start position always
+     * refers to it; an unplayable head (no download, no safe http URL) is a
+     * no-op rather than an empty/broken item handed to the player.
+     */
+    private fun loadAndPlay(head: EpisodeEntity, followOn: List<EpisodeEntity>) {
+        scope.launch {
+            val resolved = withContext(Dispatchers.IO) {
+                MediaItems.playable(head)?.let { headItem ->
+                    listOf(headItem) + followOn.mapNotNull(MediaItems::playable)
+                }
+            } ?: return@launch
+            val c = controller ?: return@launch
+            c.setMediaItems(resolved, /* startIndex = */ 0, head.positionMs.coerceAtLeast(0))
+            c.playbackParameters = PlaybackParameters(settings.defaultSpeed)
+            applySpeedFor(head.feedUrl)
+            c.prepare()
+            c.play()
+        }
+    }
+
+    /** Resolve the per-podcast speed override (falling back to the global default). */
+    private fun applySpeedFor(feedUrl: String) {
+        scope.launch {
+            val speed = repository.getPodcastOnce(feedUrl)?.overrideSpeed ?: settings.defaultSpeed
+            controller?.playbackParameters = PlaybackParameters(speed)
+        }
     }
 
     fun playPause() {
@@ -311,9 +319,25 @@ class PlaybackConnection @Inject constructor(
         if (c.hasPreviousMediaItem()) c.seekToPreviousMediaItem() else c.seekTo(0)
     }
 
+    /**
+     * Change the playback speed of what's playing now, and remember it where the
+     * user would expect: on the podcast when that podcast has its own speed
+     * override, otherwise as the global default. Previously an in-player nudge
+     * always rewrote the global default — silently retuning every *other* show
+     * even though this one was set to ignore it (issue P2).
+     */
     fun setSpeed(speed: Float) {
         controller?.playbackParameters = PlaybackParameters(speed)
-        scope.launch { settingsRepository.setDefaultSpeed(speed) }
+        val episodeId = _state.value.currentEpisodeId
+        scope.launch {
+            val feedUrl = episodeId?.let { repository.getEpisode(it)?.feedUrl }
+            val hasOverride = feedUrl?.let { repository.getPodcastOnce(it)?.overrideSpeed } != null
+            if (hasOverride && feedUrl != null) {
+                repository.setPodcastSpeed(feedUrl, speed)
+            } else {
+                settingsRepository.setDefaultSpeed(speed)
+            }
+        }
     }
 
     fun stop() {

@@ -108,6 +108,8 @@
     <string name="sleep">Sleeptimer</string>
     <string name="sleep_end">Ende</string>
     <string name="minutes_short">%1$d Min.</string>
+    <string name="onboarding_added_count">%1$d von %2$d Podcasts hinzugefügt</string>
+    <string name="duration_hours_minutes">%1$d Std. %2$02d Min.</string>
     <string name="end_of_episode">Ende der Folge</string>
     <string name="cancel_timer">Timer abbrechen</string>
     <string name="open_player">Player öffnen</string>
@@ -137,6 +139,8 @@
     <string name="bg_refresh_subtitle">Regelmäßig nach neuen Folgen suchen</string>
     <string name="new_episode_notifs_title">Benachrichtigungen zu neuen Folgen</string>
     <string name="new_episode_notifs_subtitle">Benachrichtige mich, wenn Abos neue Folgen veröffentlichen</string>
+    <string name="notifs_blocked_title">Benachrichtigungen sind deaktiviert</string>
+    <string name="notifs_blocked_subtitle">Android blockiert die Benachrichtigungen von Ondes. Zum Erlauben tippen.</string>
     <string name="settings_appearance">Darstellung</string>
     <string name="theme">Design</string>
     <string name="dynamic_color_title">Dynamische Farben</string>

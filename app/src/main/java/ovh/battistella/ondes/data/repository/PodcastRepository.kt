@@ -10,14 +10,20 @@ import ovh.battistella.ondes.data.local.PodcastEntity
 import ovh.battistella.ondes.data.local.PodcastWithCount
 import ovh.battistella.ondes.data.local.Chapter
 import ovh.battistella.ondes.data.local.QueueDao
+import ovh.battistella.ondes.data.local.episodeId
 import ovh.battistella.ondes.data.local.QueueItemEntity
-import ovh.battistella.ondes.data.remote.ParsedFeed
+import ovh.battistella.ondes.data.remote.FeedFetch
 import ovh.battistella.ondes.data.remote.PodcastSearchResult
 import ovh.battistella.ondes.data.remote.PodcastSearchService
 import ovh.battistella.ondes.data.remote.RssParser
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -51,12 +57,21 @@ class PodcastRepository @Inject constructor(
         podcastDao.observeSubscribedWithCounts()
     fun observePodcast(feedUrl: String): Flow<PodcastEntity?> = podcastDao.observePodcast(feedUrl)
     fun observeEpisodes(feedUrl: String): Flow<List<EpisodeEntity>> = episodeDao.observeForFeed(feedUrl)
+
+    /** The newest [limit] episodes of a feed, for the paged podcast screen (opt. 7). */
+    fun observeEpisodesPaged(feedUrl: String, limit: Int): Flow<List<EpisodeEntity>> =
+        episodeDao.observeForFeedPaged(feedUrl, limit)
+
+    fun observeEpisodeCount(feedUrl: String): Flow<Int> = episodeDao.observeCountForFeed(feedUrl)
     fun observeEpisode(id: String): Flow<EpisodeEntity?> = episodeDao.observeEpisode(id)
     fun observeLatest(): Flow<List<EpisodeEntity>> = episodeDao.observeLatest()
     fun observeInProgress(): Flow<List<EpisodeEntity>> = episodeDao.observeInProgress()
     fun observeDownloaded(): Flow<List<EpisodeEntity>> = episodeDao.observeDownloaded()
 
     suspend fun getEpisode(id: String): EpisodeEntity? = episodeDao.getEpisode(id)
+
+    /** Episodes with a download still queued or running (their partial files are live). */
+    suspend fun getPendingDownloadIds(): List<String> = episodeDao.getPendingDownloadIds()
     suspend fun getPodcastOnce(feedUrl: String): PodcastEntity? = podcastDao.getPodcast(feedUrl)
 
     /** Per-podcast playback-speed override (null clears it, falling back to global). */
@@ -89,6 +104,15 @@ class PodcastRepository @Inject constructor(
         }
     }
 
+    /**
+     * Subscribe to many feeds at once with bounded concurrency, returning the
+     * URLs that were actually added. Used by OPML import and onboarding, which
+     * otherwise fetched dozens of feeds strictly one after another (opt. 2).
+     */
+    suspend fun subscribeAll(feedUrls: List<String>): List<String> = withContext(ioDispatcher) {
+        inParallel(feedUrls) { url -> url.takeIf { subscribe(it).isSuccess } }.filterNotNull()
+    }
+
     suspend fun unsubscribe(feedUrl: String) = withContext(ioDispatcher) {
         podcastDao.setSubscribed(feedUrl, false)
     }
@@ -114,8 +138,32 @@ class PodcastRepository @Inject constructor(
      */
     suspend fun refreshFeed(feedUrl: String, markSubscribed: Boolean = false): List<EpisodeEntity> =
         withContext(ioDispatcher) {
-            val parsed: ParsedFeed = rssParser.fetchAndParse(feedUrl)
             val existing = podcastDao.getPodcast(feedUrl)
+            // Replay the validators from the last fetch: an unchanged feed then
+            // costs one conditional request instead of a full download + parse
+            // (opt. 1). A first fetch, or one we must not short-circuit (a fresh
+            // subscribe), sends no validators.
+            val conditional = existing != null && !markSubscribed
+            val fetched = rssParser.fetch(
+                feedUrl = feedUrl,
+                etag = existing?.etag?.takeIf { conditional },
+                lastModified = existing?.lastModified?.takeIf { conditional },
+            )
+            val updated = when (fetched) {
+                is FeedFetch.NotModified -> {
+                    // Nothing changed: just record that we looked, so the next
+                    // refresh cycle doesn't treat this feed as never-fetched.
+                    podcastDao.markChecked(
+                        feedUrl = feedUrl,
+                        checkedAt = System.currentTimeMillis(),
+                        etag = fetched.etag,
+                        lastModified = fetched.lastModified,
+                    )
+                    return@withContext emptyList()
+                }
+                is FeedFetch.Updated -> fetched
+            }
+            val parsed = updated.feed
             val podcast = PodcastEntity(
                 feedUrl = feedUrl,
                 title = parsed.title,
@@ -125,11 +173,19 @@ class PodcastRepository @Inject constructor(
                 link = parsed.link,
                 subscribed = markSubscribed || (existing?.subscribed ?: true),
                 lastUpdated = System.currentTimeMillis(),
+                // The upsert replaces the whole row, so the user's own settings
+                // for this podcast have to be carried across explicitly.
+                overrideSpeed = existing?.overrideSpeed,
+                autoDownload = existing?.autoDownload ?: false,
+                etag = updated.etag ?: existing?.etag,
+                lastModified = updated.lastModified ?: existing?.lastModified,
             )
             val fallbackImage = parsed.imageUrl
             val rows = parsed.episodes.map { e ->
                 EpisodeEntity(
-                    id = e.guid,
+                    // Feed-scoped: a GUID is only unique within its own feed
+                    // (issue P0-7).
+                    id = episodeId(feedUrl, e.guid),
                     feedUrl = feedUrl,
                     title = e.title,
                     description = e.description,
@@ -175,8 +231,23 @@ class PodcastRepository @Inject constructor(
         }
 
     suspend fun refreshAllSubscriptions(feedUrls: List<String>) = withContext(ioDispatcher) {
-        feedUrls.forEach { url -> runCatching { refreshFeed(url) } }
+        inParallel(feedUrls) { url -> runCatching { refreshFeed(url) } }
+        Unit
     }
+
+    /**
+     * Run [block] over [items] with at most [REFRESH_CONCURRENCY] in flight.
+     *
+     * Feed fan-out used to be strictly serial, so a pull-to-refresh over 50
+     * subscriptions took as long as 50 round-trips back to back (opt. 2). The
+     * work is network-bound; the permit keeps it from opening a socket per
+     * subscription at once.
+     */
+    private suspend fun <T, R> inParallel(items: List<T>, block: suspend (T) -> R): List<R> =
+        coroutineScope {
+            val gate = Semaphore(REFRESH_CONCURRENCY)
+            items.map { item -> async { gate.withPermit { block(item) } } }.awaitAll()
+        }
 
     /**
      * Refresh every subscribed feed and return the newly published episodes,
@@ -185,17 +256,17 @@ class PodcastRepository @Inject constructor(
      */
     suspend fun refreshSubscriptionsForNew(): List<NewEpisodeBatch> = withContext(ioDispatcher) {
         val subscriptions = getSubscriptionsOnce()
-        subscriptions.mapNotNull { podcast ->
+        inParallel(subscriptions) { podcast ->
             val firstFetch = podcast.lastUpdated == 0L
             val newEpisodes = runCatching { refreshFeed(podcast.feedUrl) }
                 .getOrDefault(emptyList())
                 .takeUnless { firstFetch }
                 ?: emptyList()
-            if (newEpisodes.isEmpty()) return@mapNotNull null
+            if (newEpisodes.isEmpty()) return@inParallel null
             // Re-read so the notification shows the freshly-refreshed title.
             val title = podcastDao.getPodcast(podcast.feedUrl)?.title ?: podcast.title
             NewEpisodeBatch(podcast.feedUrl, title, newEpisodes)
-        }
+        }.filterNotNull()
     }
 
     /**
@@ -244,7 +315,7 @@ class PodcastRepository @Inject constructor(
     // --- playback / state mutations ---
 
     suspend fun savePosition(episodeId: String, positionMs: Long, durationMs: Long) =
-        episodeDao.updatePosition(episodeId, positionMs, durationMs)
+        episodeDao.updatePosition(episodeId, positionMs, durationMs, System.currentTimeMillis())
 
     suspend fun setPlayed(episodeId: String, played: Boolean) =
         episodeDao.setPlayed(episodeId, played)
@@ -261,17 +332,26 @@ class PodcastRepository @Inject constructor(
     fun observeQueue(): Flow<List<EpisodeEntity>> = queueDao.observeQueue()
     suspend fun getQueueOnce(): List<EpisodeEntity> = queueDao.getQueueOnce()
 
-    /** Append an episode to the end of the queue (no-op if already queued). */
+    /**
+     * Append an episode to the end of the queue (no-op if already queued).
+     * Read-then-write inside one transaction: two concurrent adds could
+     * otherwise both read the same MAX(sortIndex) and land on the same position
+     * (issue P2).
+     */
     suspend fun addToQueueEnd(episodeId: String) = withContext(ioDispatcher) {
-        if (queueDao.contains(episodeId)) return@withContext
-        val next = (queueDao.maxSortIndex() ?: 0L) + QUEUE_STEP
-        queueDao.upsert(QueueItemEntity(episodeId, next))
+        db.withTransaction {
+            if (queueDao.contains(episodeId)) return@withTransaction
+            val next = (queueDao.maxSortIndex() ?: 0L) + QUEUE_STEP
+            queueDao.upsert(QueueItemEntity(episodeId, next))
+        }
     }
 
     /** Splice an episode to the front of the queue so it plays next. */
     suspend fun playNextInQueue(episodeId: String) = withContext(ioDispatcher) {
-        val head = (queueDao.minSortIndex() ?: 0L) - QUEUE_STEP
-        queueDao.upsert(QueueItemEntity(episodeId, head))
+        db.withTransaction {
+            val head = (queueDao.minSortIndex() ?: 0L) - QUEUE_STEP
+            queueDao.upsert(QueueItemEntity(episodeId, head))
+        }
     }
 
     suspend fun removeFromQueue(episodeId: String) = withContext(ioDispatcher) {
@@ -291,5 +371,8 @@ class PodcastRepository @Inject constructor(
 
     companion object {
         private const val QUEUE_STEP = 1_000L
+
+        /** How many feeds may be fetched at once during a fan-out refresh. */
+        private const val REFRESH_CONCURRENCY = 5
     }
 }

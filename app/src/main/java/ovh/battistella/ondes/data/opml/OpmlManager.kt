@@ -64,11 +64,9 @@ class OpmlManager @Inject constructor(
     suspend fun import(input: InputStream): Int = withContext(Dispatchers.IO) {
         val alreadySubscribed = repository.getSubscriptionsOnce().map { it.feedUrl }.toSet()
         val entries = parse(input).filter { it.feedUrl !in alreadySubscribed }
-        var added = 0
-        entries.forEach { entry ->
-            if (repository.subscribe(entry.feedUrl).isSuccess) added++
-        }
-        added
+        // Fetched with bounded concurrency: importing a 50-feed OPML one feed at
+        // a time meant 50 round-trips back to back (opt. 2).
+        repository.subscribeAll(entries.map { it.feedUrl }).size
     }
 
     private fun parse(input: InputStream): List<OpmlEntry> {

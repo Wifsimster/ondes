@@ -81,6 +81,27 @@ class QueueViewModelTest {
         assertEquals(listOf("ep-2", "ep-1", "ep-3"), db.queueDao().getOrderedIds())
     }
 
+    /**
+     * Two moves in quick succession both land: the second used to read a list
+     * the database hadn't caught up with yet and silently undo the first
+     * (issue P2).
+     */
+    @Test
+    fun `consecutive moves both apply`() = runTest(mainDispatcher.dispatcher) {
+        val vm = build()
+        seedQueue()
+        backgroundScope.launch { vm.queue.collect {} }
+        advanceUntilIdle()
+
+        // ep-1 walks from the top to the bottom, one tap after another.
+        vm.moveDown(0)
+        vm.moveDown(1)
+        advanceUntilIdle()
+
+        assertEquals(listOf("ep-2", "ep-3", "ep-1"), vm.queue.value.map { it.id })
+        assertEquals(listOf("ep-2", "ep-3", "ep-1"), db.queueDao().getOrderedIds())
+    }
+
     @Test
     fun `removing an episode drops it and offers undo`() = runTest(mainDispatcher.dispatcher) {
         val vm = build()

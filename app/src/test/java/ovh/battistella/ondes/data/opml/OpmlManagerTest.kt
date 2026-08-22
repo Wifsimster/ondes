@@ -39,8 +39,8 @@ class OpmlManagerTest {
     @Test
     fun `import subscribes http feeds and skips non-http outlines`() = runBlocking {
         build()
-        every { rss.fetchAndParse(any()) } answers {
-            TestSupport.parsedFeed(title = "Imported")
+        every { rss.fetch(any(), any(), any()) } answers {
+            TestSupport.feedFetch(TestSupport.parsedFeed(title = "Imported"))
         }
         val doc = """
             <opml version="2.0"><body>

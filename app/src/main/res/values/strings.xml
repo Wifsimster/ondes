@@ -108,6 +108,8 @@
     <string name="sleep">Sleep</string>
     <string name="sleep_end">End</string>
     <string name="minutes_short">%1$d min</string>
+    <string name="onboarding_added_count">%1$d of %2$d podcasts added</string>
+    <string name="duration_hours_minutes">%1$dh %2$02dm</string>
     <string name="end_of_episode">End of episode</string>
     <string name="cancel_timer">Cancel timer</string>
     <string name="open_player">Open player</string>
@@ -137,6 +139,8 @@
     <string name="bg_refresh_subtitle">Check subscriptions for new episodes periodically</string>
     <string name="new_episode_notifs_title">New episode notifications</string>
     <string name="new_episode_notifs_subtitle">Notify me when subscriptions publish new episodes</string>
+    <string name="notifs_blocked_title">Notifications are turned off</string>
+    <string name="notifs_blocked_subtitle">Android is blocking Ondes\' notifications. Tap to allow them.</string>
     <string name="settings_appearance">Appearance</string>
     <string name="theme">Theme</string>
     <string name="dynamic_color_title">Dynamic color</string>

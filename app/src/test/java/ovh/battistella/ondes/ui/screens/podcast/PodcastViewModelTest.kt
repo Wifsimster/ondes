@@ -26,6 +26,7 @@ import ovh.battistella.ondes.playback.PlaybackConnection
 import ovh.battistella.ondes.playback.PlayerUiState
 import ovh.battistella.ondes.testing.MainDispatcherRule
 import ovh.battistella.ondes.testing.TestSupport
+import ovh.battistella.ondes.data.local.episodeId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -48,13 +49,13 @@ class PodcastViewModelTest {
         repo = TestSupport.repository(db, mainDispatcher.dispatcher, rss = rss)
         connection = TestSupport.mockConnection(playerFlow)
         // The screen's init refreshes the feed; feed it two episodes.
-        every { rss.fetchAndParse(feedUrl) } returns TestSupport.parsedFeed(
+        every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(TestSupport.parsedFeed(
             title = "My Show",
             episodes = listOf(
                 TestSupport.parsedEpisode(guid = "ep-1", title = "Kotlin Weekly", pubDate = 2),
                 TestSupport.parsedEpisode(guid = "ep-2", title = "Scala Times", pubDate = 1),
             ),
-        )
+        ))
         return PodcastViewModel(
             context = context,
             savedStateHandle = SavedStateHandle(mapOf("feedUrl" to feedUrl)),
@@ -62,6 +63,7 @@ class PodcastViewModelTest {
             connection = connection,
             downloadManager = downloadManager,
             snackbar = snackbar,
+            ioDispatcher = mainDispatcher.dispatcher,
         )
     }
 
@@ -75,8 +77,43 @@ class PodcastViewModelTest {
         backgroundScope.launch { vm.episodes.collect {} }
         advanceUntilIdle()
 
-        assertEquals(listOf("ep-1", "ep-2"), vm.episodes.value.map { it.id })
+        assertEquals(
+            listOf(episodeId(feedUrl, "ep-1"), episodeId(feedUrl, "ep-2")),
+            vm.episodes.value.map { it.id },
+        )
         assertEquals("My Show", db.podcastDao().getPodcast(feedUrl)?.title)
+    }
+
+    /**
+     * The list starts at one page and grows on demand, instead of reading a
+     * whole back catalogue out of SQLite to fill the first screen (opt. 7).
+     */
+    @Test
+    fun `episodes load a page at a time`() = runTest(mainDispatcher.dispatcher) {
+        val vm = build()
+        backgroundScope.launch { vm.episodes.collect {} }
+        backgroundScope.launch { vm.episodeCount.collect {} }
+        advanceUntilIdle()
+
+        // A back catalogue larger than one page.
+        db.episodeDao().insertNew(
+            (1..60).map { i ->
+                TestSupport.episode(
+                    id = episodeId(feedUrl, "back-$i"),
+                    feedUrl = feedUrl,
+                    title = "Back $i",
+                    pubDate = -i.toLong(),
+                )
+            }
+        )
+        advanceUntilIdle()
+
+        assertEquals(62, vm.episodeCount.value)
+        assertEquals(40, vm.episodes.value.size)
+
+        vm.loadMore()
+        advanceUntilIdle()
+        assertEquals(62, vm.episodes.value.size)
     }
 
     @Test
@@ -88,7 +125,7 @@ class PodcastViewModelTest {
         vm.onQueryChange("kotlin")
         advanceUntilIdle()
 
-        assertEquals(listOf("ep-1"), vm.filteredEpisodes.value.map { it.id })
+        assertEquals(listOf(episodeId(feedUrl, "ep-1")), vm.filteredEpisodes.value.map { it.id })
     }
 
     @Test
@@ -96,13 +133,13 @@ class PodcastViewModelTest {
         val vm = build()
         backgroundScope.launch { vm.filteredEpisodes.collect {} }
         advanceUntilIdle()
-        db.episodeDao().setPlayed("ep-2", true)
+        db.episodeDao().setPlayed(episodeId(feedUrl, "ep-2"), true)
         advanceUntilIdle()
 
         vm.toggleUnplayedOnly()
         advanceUntilIdle()
 
-        assertEquals(listOf("ep-1"), vm.filteredEpisodes.value.map { it.id })
+        assertEquals(listOf(episodeId(feedUrl, "ep-1")), vm.filteredEpisodes.value.map { it.id })
     }
 
     @Test

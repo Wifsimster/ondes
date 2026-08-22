@@ -14,10 +14,16 @@ class Converters {
     fun fromDownloadState(state: DownloadState): String = state.name
 }
 
+/**
+ * Schemas are exported to `app/schemas` and checked in: they are what
+ * `MigrationTest` validates each migration against, so a schema change that
+ * ships without a migration fails the build's tests instead of silently wiping
+ * a user's library at runtime (issue P1-10).
+ */
 @Database(
     entities = [PodcastEntity::class, EpisodeEntity::class, QueueItemEntity::class],
-    version = 5,
-    exportSchema = false,
+    version = 6,
+    exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class OndesDatabase : RoomDatabase() {

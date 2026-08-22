@@ -44,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,6 +79,7 @@ fun PodcastScreen(
 ) {
     val podcast by viewModel.podcast.collectAsStateWithLifecycle()
     val episodes by viewModel.episodes.collectAsStateWithLifecycle()
+    val episodeCount by viewModel.episodeCount.collectAsStateWithLifecycle()
     val filteredEpisodes by viewModel.filteredEpisodes.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val unplayedOnly by viewModel.unplayedOnly.collectAsStateWithLifecycle()
@@ -231,7 +233,7 @@ fun PodcastScreen(
                     ) {
                         Text(
                             pluralStringResource(
-                                R.plurals.episodes_count, episodes.size, episodes.size,
+                                R.plurals.episodes_count, episodeCount, episodeCount,
                             ),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
@@ -243,7 +245,7 @@ fun PodcastScreen(
                             label = { Text(stringResource(R.string.filter_unplayed_only)) },
                         )
                     }
-                    if (episodes.size > 8) {
+                    if (episodeCount > 8) {
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = query,
@@ -274,6 +276,21 @@ fun PodcastScreen(
                     modifier = Modifier.animateItem(),
                 )
                 HorizontalDivider(Modifier.padding(start = OndesTheme.spacing.lg))
+            }
+
+            // Reaching the end of the loaded page asks for the next one, so a
+            // long back catalogue streams in as the user scrolls rather than
+            // being read and diffed in full up front (opt. 7).
+            if (query.isBlank() && filteredEpisodes.size < episodeCount) {
+                item(key = "load-more") {
+                    LaunchedEffect(filteredEpisodes.size) { viewModel.loadMore() }
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(OndesTheme.spacing.lg),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(Modifier.size(24.dp))
+                    }
+                }
             }
         }
         }

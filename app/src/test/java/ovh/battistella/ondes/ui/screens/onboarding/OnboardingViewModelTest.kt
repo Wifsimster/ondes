@@ -21,6 +21,9 @@ import ovh.battistella.ondes.data.repository.PodcastRepository
 import ovh.battistella.ondes.data.settings.SettingsRepository
 import ovh.battistella.ondes.testing.MainDispatcherRule
 import ovh.battistella.ondes.testing.TestSupport
+import ovh.battistella.ondes.common.SnackbarController
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -28,6 +31,7 @@ class OnboardingViewModelTest {
 
     @get:Rule val mainDispatcher = MainDispatcherRule()
 
+    private val context = ApplicationProvider.getApplicationContext<Context>()
     private val settingsRepository = mockk<SettingsRepository>(relaxed = true)
     private val search = mockk<PodcastSearchService>(relaxed = true)
     private val rss = mockk<RssParser>(relaxed = true)
@@ -37,7 +41,7 @@ class OnboardingViewModelTest {
     private fun build(): OnboardingViewModel {
         db = TestSupport.inMemoryDb()
         repo = TestSupport.repository(db, mainDispatcher.dispatcher, rss = rss, search = search)
-        return OnboardingViewModel(repo, settingsRepository)
+        return OnboardingViewModel(context, repo, settingsRepository, SnackbarController())
     }
 
     @After fun tearDown() {
@@ -91,8 +95,8 @@ class OnboardingViewModelTest {
             TestSupport.searchResult(feedUrl = "https://pick.example/feed", title = "Chosen"),
             TestSupport.searchResult(feedUrl = "https://skip.example/feed", title = "Skipped"),
         )
-        every { rss.fetchAndParse("https://pick.example/feed") } returns
-            TestSupport.parsedFeed(title = "Chosen")
+        every { rss.fetch("https://pick.example/feed", any(), any()) } returns
+            TestSupport.feedFetch(TestSupport.parsedFeed(title = "Chosen"))
         val vm = build()
         vm.toggle(vm.themes[0])
         vm.proceedToProposals()

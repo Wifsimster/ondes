@@ -25,6 +25,7 @@ import ovh.battistella.ondes.data.remote.PodcastSearchService
 import ovh.battistella.ondes.data.remote.RssParser
 import ovh.battistella.ondes.testing.MainDispatcherRule
 import ovh.battistella.ondes.testing.TestSupport
+import androidx.lifecycle.SavedStateHandle
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -44,7 +45,7 @@ class SearchViewModelTest {
         // StandardTestDispatcher's virtual clock (which room-ktx's transaction
         // dispatcher doesn't advance under a detached launch). Mirrors SearchScreenTest.
         val repo = TestSupport.repository(db, Dispatchers.Unconfined, rss = rss, search = search)
-        return SearchViewModel(context, repo, SnackbarController())
+        return SearchViewModel(context, SavedStateHandle(), repo, SnackbarController())
     }
 
     @After fun tearDown() {
@@ -105,8 +106,8 @@ class SearchViewModelTest {
 
     @Test
     fun `pasting a feed URL subscribes and emits the show to open`() = runTest(mainDispatcher.dispatcher) {
-        every { rss.fetchAndParse("https://example.com/feed.xml") } returns
-            TestSupport.parsedFeed(title = "Pasted Show")
+        every { rss.fetch("https://example.com/feed.xml", any(), any()) } returns
+            TestSupport.feedFetch(TestSupport.parsedFeed(title = "Pasted Show"))
         val vm = viewModel()
         // openPodcast is a replay-0 SharedFlow, so subscribe (eagerly, via an
         // unconfined dispatcher) before triggering the emission.
@@ -141,7 +142,7 @@ class SearchViewModelTest {
     @Test
     fun `a failed subscribe from the browse landing does not replace the screen with an error`() =
         runTest(mainDispatcher.dispatcher) {
-            every { rss.fetchAndParse(any()) } throws RuntimeException("offline")
+            every { rss.fetch(any(), any(), any()) } throws RuntimeException("offline")
             val vm = viewModel()
 
             vm.subscribe(TestSupport.searchResult(feedUrl = "https://x.example/feed"))

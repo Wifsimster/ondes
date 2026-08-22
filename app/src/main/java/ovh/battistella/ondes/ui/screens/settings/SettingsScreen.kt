@@ -1,5 +1,7 @@
 package ovh.battistella.ondes.ui.screens.settings
 
+import android.content.Intent
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,7 +44,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ovh.battistella.ondes.BuildConfig
 import ovh.battistella.ondes.R
@@ -56,6 +63,7 @@ fun SettingsScreen(
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val notificationsAllowed = rememberNotificationsAllowed(context)
 
     // Surface one-shot results of data operations (export/import) as toasts.
     LaunchedEffect(Unit) {
@@ -159,6 +167,16 @@ fun SettingsScreen(
             checked = settings.newEpisodeNotifications,
             onCheckedChange = viewModel::setNewEpisodeNotifications,
         )
+        // The switch above only records a preference: if the OS permission was
+        // denied, nothing is ever posted and the switch quietly lied about it
+        // (issue P2). Say so, and offer the one place that can fix it.
+        if (settings.newEpisodeNotifications && !notificationsAllowed) {
+            ActionRow(
+                title = stringResource(R.string.notifs_blocked_title),
+                subtitle = stringResource(R.string.notifs_blocked_subtitle),
+                onClick = { context.startActivity(appNotificationSettingsIntent(context)) },
+            )
+        }
 
         SectionHeader(stringResource(R.string.settings_data))
         ActionRow(
@@ -206,6 +224,33 @@ fun SettingsScreen(
     }
     }
 }
+
+/**
+ * Whether the app may actually post notifications, re-checked whenever Settings
+ * comes back to the foreground — the user may have just changed it in the
+ * system settings we sent them to.
+ */
+@Composable
+private fun rememberNotificationsAllowed(context: android.content.Context): Boolean {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var allowed by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                allowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return allowed
+}
+
+/** The system screen where app notifications can be re-enabled. */
+private fun appNotificationSettingsIntent(context: android.content.Context): Intent =
+    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
 @Composable
 private fun InfoRow(

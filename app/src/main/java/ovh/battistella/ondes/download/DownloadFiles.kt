@@ -16,13 +16,16 @@ import java.security.MessageDigest
  * cross-wire onto the same file (issue P2). A partial download is written to a
  * sibling `.part` file and only renamed onto the final [target] once it is
  * verified complete (issue P0-5), so a truncated stream can never be mistaken
- * for a finished download.
+ * for a finished download. Alongside it, a tiny `.meta` file records the
+ * validator the partial bytes belong to, so a retry can ask for the rest of
+ * *that* file with `Range` / `If-Range` rather than starting over (opt. 5).
  */
 object DownloadFiles {
 
     private const val DIR = "downloads"
     private const val SUFFIX = ".audio"
     private const val PART_SUFFIX = ".audio.part"
+    private const val META_SUFFIX = ".audio.meta"
 
     fun dir(context: Context): File = File(context.filesDir, DIR)
 
@@ -32,9 +35,22 @@ object DownloadFiles {
     fun partFile(context: Context, episodeId: String): File =
         File(dir(context), hash(episodeId) + PART_SUFFIX)
 
-    /** Whether [file] is one of our download artifacts (final or partial). */
+    /** Sidecar holding the validator + expected size of the current `.part`. */
+    fun metaFile(context: Context, episodeId: String): File =
+        File(dir(context), hash(episodeId) + META_SUFFIX)
+
+    /** Whether [file] is one of our download artifacts (final, partial or sidecar). */
     fun isDownloadArtifact(file: File): Boolean =
-        file.name.endsWith(SUFFIX) || file.name.endsWith(PART_SUFFIX)
+        file.name.endsWith(SUFFIX) || file.name.endsWith(PART_SUFFIX) ||
+            file.name.endsWith(META_SUFFIX)
+
+    /** Whether [file] is an in-progress artifact rather than a finished download. */
+    fun isPartialArtifact(file: File): Boolean =
+        file.name.endsWith(PART_SUFFIX) || file.name.endsWith(META_SUFFIX)
+
+    /** The `.part`/`.meta` names an in-flight download of [episodeId] may use. */
+    fun partialNames(episodeId: String): Set<String> =
+        setOf(hash(episodeId) + PART_SUFFIX, hash(episodeId) + META_SUFFIX)
 
     fun hash(episodeId: String): String =
         MessageDigest.getInstance("SHA-256")

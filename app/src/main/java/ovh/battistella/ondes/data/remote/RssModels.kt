@@ -1,5 +1,22 @@
 package ovh.battistella.ondes.data.remote
 
+/**
+ * The outcome of a conditional feed fetch: either fresh content, or the
+ * server's confirmation that nothing changed since the stored validators.
+ */
+sealed interface FeedFetch {
+    data class Updated(
+        val feed: ParsedFeed,
+        val etag: String? = null,
+        val lastModified: String? = null,
+    ) : FeedFetch
+
+    data class NotModified(
+        val etag: String? = null,
+        val lastModified: String? = null,
+    ) : FeedFetch
+}
+
 data class ParsedFeed(
     val title: String,
     val author: String,

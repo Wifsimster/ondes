@@ -53,7 +53,7 @@ import ovh.battistella.ondes.ui.components.OndesEmptyState
 import ovh.battistella.ondes.ui.components.PlayPauseIcon
 import ovh.battistella.ondes.ui.components.PodcastArtwork
 import ovh.battistella.ondes.ui.components.formatDate
-import ovh.battistella.ondes.ui.components.formatDurationLabel
+import ovh.battistella.ondes.ui.components.durationLabel
 import ovh.battistella.ondes.ui.theme.OndesTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -182,11 +182,11 @@ private fun QueueRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(2.dp))
+            val duration = durationLabel(episode.durationMs)
             Text(
                 text = buildString {
                     append(formatDate(episode.pubDate))
-                    val dur = formatDurationLabel(episode.durationMs)
-                    if (dur.isNotEmpty()) append("  ·  $dur")
+                    if (duration.isNotEmpty()) append("  ·  $duration")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

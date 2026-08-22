@@ -52,6 +52,22 @@ interface PodcastDao {
     @Query("UPDATE podcasts SET autoDownload = :enabled WHERE feedUrl = :feedUrl")
     suspend fun setAutoDownload(feedUrl: String, enabled: Boolean)
 
+    /**
+     * Record that a feed was checked and found unchanged (HTTP 304): only the
+     * "last checked" stamp moves, and the validators are refreshed if the server
+     * sent new ones (opt. 1).
+     */
+    @Query(
+        """
+        UPDATE podcasts SET
+            lastUpdated = :checkedAt,
+            etag = COALESCE(:etag, etag),
+            lastModified = COALESCE(:lastModified, lastModified)
+        WHERE feedUrl = :feedUrl
+        """
+    )
+    suspend fun markChecked(feedUrl: String, checkedAt: Long, etag: String?, lastModified: String?)
+
     @Query("DELETE FROM podcasts WHERE feedUrl = :feedUrl")
     suspend fun delete(feedUrl: String)
 
@@ -77,14 +93,41 @@ interface EpisodeDao {
     @Query("SELECT * FROM episodes WHERE feedUrl = :feedUrl ORDER BY pubDate DESC")
     fun observeForFeed(feedUrl: String): Flow<List<EpisodeEntity>>
 
+    /**
+     * The newest [limit] episodes of a feed. The podcast screen loads a page at a
+     * time and grows it on demand, so a 900-episode back catalogue is neither
+     * read out of SQLite nor diffed by Compose to show the first screenful
+     * (opt. 7).
+     */
+    @Query("SELECT * FROM episodes WHERE feedUrl = :feedUrl ORDER BY pubDate DESC LIMIT :limit")
+    fun observeForFeedPaged(feedUrl: String, limit: Int): Flow<List<EpisodeEntity>>
+
+    /** Total episodes stored for a feed, so the UI knows when a page is the last. */
+    @Query("SELECT COUNT(*) FROM episodes WHERE feedUrl = :feedUrl")
+    fun observeCountForFeed(feedUrl: String): Flow<Int>
+
     @Query("SELECT * FROM episodes WHERE id = :id")
     fun observeEpisode(id: String): Flow<EpisodeEntity?>
 
     @Query("SELECT * FROM episodes WHERE id = :id")
     suspend fun getEpisode(id: String): EpisodeEntity?
 
-    @Query("UPDATE episodes SET positionMs = :positionMs, durationMs = CASE WHEN :durationMs > 0 THEN :durationMs ELSE durationMs END WHERE id = :id")
-    suspend fun updatePosition(id: String, positionMs: Long, durationMs: Long)
+    /**
+     * Store a resume position, stamping [playedAt] so "Continue listening" can
+     * order by when the user last listened rather than by publication date
+     * (issue P2). A 0 duration leaves the stored one alone (the outgoing item on
+     * a skip has no readable duration).
+     */
+    @Query(
+        """
+        UPDATE episodes SET
+            positionMs = :positionMs,
+            durationMs = CASE WHEN :durationMs > 0 THEN :durationMs ELSE durationMs END,
+            lastPlayedAt = :playedAt
+        WHERE id = :id
+        """
+    )
+    suspend fun updatePosition(id: String, positionMs: Long, durationMs: Long, playedAt: Long)
 
     // Reset the resume position either way: marking played finishes it, marking
     // unplayed clears progress so an in-progress episode truly starts fresh (and
@@ -136,12 +179,17 @@ interface EpisodeDao {
     @Query("UPDATE episodes SET chaptersUrl = :url WHERE id = :id AND chaptersUrl IS NULL")
     suspend fun updateChaptersUrl(id: String, url: String)
 
-    /** Continue listening: started-but-not-finished, most recently touched first. */
+    /**
+     * Continue listening: started-but-not-finished, most recently *listened to*
+     * first. Ordering by pubDate put an old episode you resumed this morning
+     * below a new one you sampled last week (issue P2); episodes that pre-date
+     * the lastPlayedAt column carry 0 and fall back to publication order.
+     */
     @Query(
         """
         SELECT * FROM episodes
         WHERE positionMs > 0 AND isFinished = 0
-        ORDER BY pubDate DESC LIMIT 20
+        ORDER BY lastPlayedAt DESC, pubDate DESC LIMIT 20
         """
     )
     fun observeInProgress(): Flow<List<EpisodeEntity>>
@@ -158,6 +206,10 @@ interface EpisodeDao {
 
     @Query("SELECT * FROM episodes WHERE downloadState = 'DOWNLOADED' ORDER BY pubDate DESC")
     fun observeDownloaded(): Flow<List<EpisodeEntity>>
+
+    /** Episodes whose download is still expected to run, so its partial file is not junk. */
+    @Query("SELECT id FROM episodes WHERE downloadState IN ('QUEUED', 'DOWNLOADING')")
+    suspend fun getPendingDownloadIds(): List<String>
 }
 
 @Dao

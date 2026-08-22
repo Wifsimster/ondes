@@ -12,6 +12,7 @@ import ovh.battistella.ondes.data.local.DownloadState
 import ovh.battistella.ondes.data.local.EpisodeEntity
 import ovh.battistella.ondes.data.local.OndesDatabase
 import ovh.battistella.ondes.data.local.PodcastEntity
+import ovh.battistella.ondes.data.remote.FeedFetch
 import ovh.battistella.ondes.data.remote.ParsedEpisode
 import ovh.battistella.ondes.data.remote.ParsedFeed
 import ovh.battistella.ondes.data.remote.PodcastSearchResult
@@ -85,6 +86,13 @@ object TestSupport {
         link = "https://example.com/show",
         episodes = episodes,
     )
+
+    /** A fetched-and-changed feed, as [RssParser.fetch] returns it. */
+    fun feedFetch(
+        feed: ParsedFeed = parsedFeed(),
+        etag: String? = null,
+        lastModified: String? = null,
+    ) = FeedFetch.Updated(feed = feed, etag = etag, lastModified = lastModified)
 
     fun parsedEpisode(
         guid: String = "ep-1",

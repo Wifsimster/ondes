@@ -137,9 +137,12 @@ fun EpisodeRow(
             val timeLeft = if (inProgress) {
                 stringResource(
                     R.string.time_left,
-                    formatDurationLabel(episode.durationMs - episode.positionMs),
+                    durationLabel(episode.durationMs - episode.positionMs),
                 )
             } else ""
+            // Resolved before buildString: the label is localised, so it is read
+            // from resources rather than assembled from hardcoded unit letters.
+            val duration = durationLabel(episode.durationMs)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (episode.isFinished) {
                     Icon(
@@ -155,9 +158,8 @@ fun EpisodeRow(
                         append(formatDate(episode.pubDate))
                         if (inProgress) {
                             append("  ·  $timeLeft")
-                        } else {
-                            val dur = formatDurationLabel(episode.durationMs)
-                            if (dur.isNotEmpty()) append("  ·  $dur")
+                        } else if (duration.isNotEmpty()) {
+                            append("  ·  $duration")
                         }
                     },
                     style = MaterialTheme.typography.bodySmall,

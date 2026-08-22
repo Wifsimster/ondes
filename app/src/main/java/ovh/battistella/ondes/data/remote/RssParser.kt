@@ -20,16 +20,45 @@ import javax.inject.Singleton
 class RssParser @Inject constructor(
     private val client: OkHttpClient,
 ) {
-    fun fetchAndParse(feedUrl: String): ParsedFeed {
+    /**
+     * Fetch a feed, replaying the validators from the previous fetch so an
+     * unchanged feed can answer `304 Not Modified` (opt. 1).
+     *
+     * Every subscription used to be re-downloaded and re-parsed in full on each
+     * 3-hourly refresh cycle. Most cycles change nothing, so the conditional
+     * request turns that into a header exchange: no body over the air, no XML
+     * parse, no database churn.
+     */
+    fun fetch(feedUrl: String, etag: String? = null, lastModified: String? = null): FeedFetch {
         val request = Request.Builder()
             .url(feedUrl)
             .header("User-Agent", USER_AGENT)
+            .apply {
+                etag?.takeIf { it.isNotBlank() }?.let { header("If-None-Match", it) }
+                lastModified?.takeIf { it.isNotBlank() }?.let { header("If-Modified-Since", it) }
+            }
             .build()
         client.newCall(request).execute().use { response ->
+            if (response.code == HTTP_NOT_MODIFIED) {
+                return FeedFetch.NotModified(
+                    etag = response.header("ETag") ?: etag,
+                    lastModified = response.header("Last-Modified") ?: lastModified,
+                )
+            }
             if (!response.isSuccessful) error("HTTP ${response.code} fetching $feedUrl")
             val body = response.body ?: error("Empty body for $feedUrl")
-            return parse(body.byteStream())
+            return FeedFetch.Updated(
+                feed = parse(body.byteStream()),
+                etag = response.header("ETag"),
+                lastModified = response.header("Last-Modified"),
+            )
         }
+    }
+
+    /** Unconditional fetch — a feed seen for the first time has no validators. */
+    fun fetchAndParse(feedUrl: String): ParsedFeed = when (val result = fetch(feedUrl)) {
+        is FeedFetch.Updated -> result.feed
+        is FeedFetch.NotModified -> error("Unexpected 304 for un-conditional fetch of $feedUrl")
     }
 
     fun parse(input: InputStream): ParsedFeed {
@@ -208,5 +237,6 @@ class RssParser @Inject constructor(
 
     companion object {
         private const val USER_AGENT = "Ondes/1.0 (Android podcast app)"
+        private const val HTTP_NOT_MODIFIED = 304
     }
 }
