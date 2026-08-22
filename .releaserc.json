@@ -6,7 +6,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "bash scripts/set-version.sh ${nextRelease.version} && ./gradlew assembleRelease --stacktrace"
+        "prepareCmd": "bash scripts/set-version.sh ${nextRelease.version} && ./gradlew assembleRelease --stacktrace && (cd app/build/outputs/apk/release && sha256sum app-release.apk > SHA256SUMS.txt)"
       }
     ],
     [
@@ -22,7 +22,11 @@
         "assets": [
           {
             "path": "app/build/outputs/apk/release/app-release.apk",
-            "label": "Ondes v${nextRelease.version} (app-release.apk)"
+            "label": "Ondes v${nextRelease.version} — Android APK (app-release.apk)"
+          },
+          {
+            "path": "app/build/outputs/apk/release/SHA256SUMS.txt",
+            "label": "SHA256SUMS.txt"
           }
         ]
       }
