@@ -9,7 +9,6 @@ import ovh.battistella.ondes.download.DownloadManager
 import ovh.battistella.ondes.playback.NowPlaying
 import ovh.battistella.ondes.playback.PlaybackConnection
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -56,7 +55,12 @@ class HomeViewModel @Inject constructor(
     val refreshing = _refreshing.asStateFlow()
 
     fun refresh() {
-        viewModelScope.launch(Dispatchers.IO) {
+        // Plain viewModelScope (Main), like PodcastViewModel.refresh: the repository
+        // call does its own withContext(ioDispatcher) and the subscriptions read is a
+        // suspending Room Flow, so nothing here blocks the main thread. Launching on
+        // Dispatchers.IO instead would put the work on a real thread pool that a
+        // test's scheduler cannot drive.
+        viewModelScope.launch {
             _refreshing.value = true
             val feeds = repository.observeSubscriptions().first().map { it.feedUrl }
             repository.refreshAllSubscriptions(feeds)

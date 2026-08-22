@@ -14,7 +14,6 @@ import ovh.battistella.ondes.playback.NowPlaying
 import ovh.battistella.ondes.playback.PlaybackConnection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -82,7 +81,12 @@ class PodcastViewModel @Inject constructor(
     }
 
     fun refresh() {
-        viewModelScope.launch(Dispatchers.IO) {
+        // Plain viewModelScope (Main) on purpose: refreshFeed already does its own
+        // withContext(ioDispatcher), so nothing here blocks the main thread, and
+        // launching on Dispatchers.IO instead put the whole refresh on a real thread
+        // pool that a test's scheduler cannot drive — the init refresh then raced
+        // the assertions. Matches toggleSubscribe/markPlayed below.
+        viewModelScope.launch {
             _refreshing.value = true
             // Tell the user when a manual pull-to-refresh fails instead of just
             // stopping the spinner with no feedback.
