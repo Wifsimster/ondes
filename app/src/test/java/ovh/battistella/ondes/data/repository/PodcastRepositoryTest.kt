@@ -13,6 +13,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import ovh.battistella.ondes.data.local.DownloadState
 import ovh.battistella.ondes.data.local.OndesDatabase
+import ovh.battistella.ondes.data.local.episodeId
+import ovh.battistella.ondes.data.remote.FeedFetch
 import ovh.battistella.ondes.data.remote.RssParser
 import ovh.battistella.ondes.testing.MainDispatcherRule
 import ovh.battistella.ondes.testing.TestSupport
@@ -48,36 +50,41 @@ class PodcastRepositoryTest {
         runTest(mainDispatcher.dispatcher) {
             build()
 
-            every { rss.fetchAndParse(feedUrl) } returns TestSupport.parsedFeed(
-                episodes = listOf(TestSupport.parsedEpisode(guid = "ep-1", title = "Original")),
+            every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(
+                TestSupport.parsedFeed(
+                    episodes = listOf(TestSupport.parsedEpisode(guid = "ep-1", title = "Original")),
+                ),
             )
             val firstNew = repo.refreshFeed(feedUrl, markSubscribed = true)
             advanceUntilIdle()
-            assertEquals(listOf("ep-1"), firstNew.map { it.id })
+            val ep1Id = episodeId(feedUrl, "ep-1")
+            assertEquals(listOf(ep1Id), firstNew.map { it.id })
 
             // The user listens to and downloads ep-1.
-            db.episodeDao().updatePosition("ep-1", 42_000, 60_000)
-            db.episodeDao().updateDownload("ep-1", DownloadState.DOWNLOADED, 100, "/data/ep-1.audio")
+            db.episodeDao().updatePosition(ep1Id, 42_000, 60_000, 5_000)
+            db.episodeDao().updateDownload(ep1Id, DownloadState.DOWNLOADED, 100, "/data/ep-1.audio")
 
             // The feed re-publishes ep-1 with an edited title + rotated URL, and a
             // brand-new ep-2.
-            every { rss.fetchAndParse(feedUrl) } returns TestSupport.parsedFeed(
-                episodes = listOf(
-                    TestSupport.parsedEpisode(
-                        guid = "ep-1",
-                        title = "Edited",
-                        audioUrl = "https://cdn.example.com/rotated.mp3",
+            every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(
+                TestSupport.parsedFeed(
+                    episodes = listOf(
+                        TestSupport.parsedEpisode(
+                            guid = "ep-1",
+                            title = "Edited",
+                            audioUrl = "https://cdn.example.com/rotated.mp3",
+                        ),
+                        TestSupport.parsedEpisode(guid = "ep-2", title = "Second"),
                     ),
-                    TestSupport.parsedEpisode(guid = "ep-2", title = "Second"),
                 ),
             )
             val secondNew = repo.refreshFeed(feedUrl)
             advanceUntilIdle()
 
             // Only ep-2 is genuinely new.
-            assertEquals(listOf("ep-2"), secondNew.map { it.id })
+            assertEquals(listOf(episodeId(feedUrl, "ep-2")), secondNew.map { it.id })
 
-            val ep1 = db.episodeDao().getEpisode("ep-1")!!
+            val ep1 = db.episodeDao().getEpisode(ep1Id)!!
             // Feed-owned content is refreshed...
             assertEquals("Edited", ep1.title)
             assertEquals("https://cdn.example.com/rotated.mp3", ep1.audioUrl)
@@ -85,5 +92,69 @@ class PodcastRepositoryTest {
             assertEquals(42_000L, ep1.positionMs)
             assertEquals(DownloadState.DOWNLOADED, ep1.downloadState)
             assertEquals("/data/ep-1.audio", ep1.localFilePath)
+        }
+
+    /**
+     * Two feeds numbering their items "1" both keep their episode. Keyed on the
+     * bare GUID, the second feed's episode was silently swallowed by
+     * INSERT-IGNORE (issue P0-7).
+     */
+    @Test
+    fun `episodes from different feeds can share a guid`() = runTest(mainDispatcher.dispatcher) {
+        build()
+        val otherFeed = "https://other.example.com/feed.xml"
+        every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(
+            TestSupport.parsedFeed(
+                title = "First",
+                episodes = listOf(TestSupport.parsedEpisode(guid = "1", title = "First show")),
+            ),
+        )
+        every { rss.fetch(otherFeed, any(), any()) } returns TestSupport.feedFetch(
+            TestSupport.parsedFeed(
+                title = "Second",
+                episodes = listOf(TestSupport.parsedEpisode(guid = "1", title = "Second show")),
+            ),
+        )
+
+        repo.refreshFeed(feedUrl, markSubscribed = true)
+        repo.refreshFeed(otherFeed, markSubscribed = true)
+        advanceUntilIdle()
+
+        assertEquals("First show", db.episodeDao().getEpisode(episodeId(feedUrl, "1"))?.title)
+        assertEquals("Second show", db.episodeDao().getEpisode(episodeId(otherFeed, "1"))?.title)
+    }
+
+    /**
+     * A feed that answers 304 costs nothing beyond the request: no re-parse, no
+     * episode writes, and the stored validators are replayed on the next check
+     * (opt. 1).
+     */
+    @Test
+    fun `unchanged feed is not re-parsed and keeps its episodes`() =
+        runTest(mainDispatcher.dispatcher) {
+            build()
+            every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(
+                feed = TestSupport.parsedFeed(
+                    episodes = listOf(TestSupport.parsedEpisode(guid = "ep-1")),
+                ),
+                etag = "\"v1\"",
+                lastModified = "Wed, 21 Oct 2026 07:28:00 GMT",
+            )
+            repo.refreshFeed(feedUrl, markSubscribed = true)
+            advanceUntilIdle()
+            assertEquals("\"v1\"", db.podcastDao().getPodcast(feedUrl)?.etag)
+
+            // Second refresh: the server says nothing changed.
+            every {
+                rss.fetch(feedUrl, "\"v1\"", "Wed, 21 Oct 2026 07:28:00 GMT")
+            } returns FeedFetch.NotModified(etag = "\"v1\"", lastModified = null)
+
+            val fresh = repo.refreshFeed(feedUrl)
+            advanceUntilIdle()
+
+            assertEquals(emptyList<String>(), fresh.map { it.id })
+            assertEquals("ep-1 survives", "Episode 1", db.episodeDao().getEpisode(episodeId(feedUrl, "ep-1"))?.title)
+            // "Last checked" moved on even though nothing was re-parsed.
+            assert(db.podcastDao().getPodcast(feedUrl)!!.lastUpdated > 0)
         }
 }

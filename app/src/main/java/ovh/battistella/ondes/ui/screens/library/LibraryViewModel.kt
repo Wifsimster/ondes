@@ -1,6 +1,7 @@
 package ovh.battistella.ondes.ui.screens.library
 
 import android.content.Context
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ovh.battistella.ondes.R
@@ -23,12 +24,19 @@ enum class LibrarySort { RECENT, ALPHABETICAL, UNPLAYED }
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
+    private val savedStateHandle: SavedStateHandle,
     private val repository: PodcastRepository,
     private val snackbar: SnackbarController,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
-    private val _sort = MutableStateFlow(LibrarySort.RECENT)
+    // Restored from saved state: the chosen order used to reset to RECENT on
+    // every rotation and every restore from background (issue P2).
+    private val _sort = MutableStateFlow(
+        savedStateHandle.get<String>(KEY_SORT)
+            ?.let { name -> runCatching { LibrarySort.valueOf(name) }.getOrNull() }
+            ?: LibrarySort.RECENT,
+    )
     val sort: StateFlow<LibrarySort> = _sort.asStateFlow()
 
     /** feedUrls currently picked in multi-select mode (empty = not selecting). */
@@ -54,6 +62,7 @@ class LibraryViewModel @Inject constructor(
 
     fun setSort(sort: LibrarySort) {
         _sort.value = sort
+        savedStateHandle[KEY_SORT] = sort.name
     }
 
     // --- multi-select ---
@@ -89,5 +98,9 @@ class LibraryViewModel @Inject constructor(
                 action = { repository.resubscribeAll(targets) },
             )
         }
+    }
+
+    private companion object {
+        const val KEY_SORT = "library_sort"
     }
 }

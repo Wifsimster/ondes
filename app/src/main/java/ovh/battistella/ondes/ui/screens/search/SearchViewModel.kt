@@ -1,6 +1,7 @@
 package ovh.battistella.ondes.ui.screens.search
 
 import android.content.Context
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ovh.battistella.ondes.R
@@ -37,11 +38,16 @@ data class SearchUiState(
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val savedStateHandle: SavedStateHandle,
     private val repository: PodcastRepository,
     private val snackbar: SnackbarController,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(SearchUiState())
+    // Seeded from saved state so a rotation (or the process being killed in the
+    // background) doesn't silently empty the search box (issue P2).
+    private val _state = MutableStateFlow(
+        SearchUiState(query = savedStateHandle[KEY_QUERY] ?: ""),
+    )
     val state = _state.asStateFlow()
 
     /** One-shot: a feed URL to open (e.g. after a successful paste-a-URL subscribe). */
@@ -66,17 +72,21 @@ class SearchViewModel @Inject constructor(
     }
 
     fun onQueryChange(query: String) {
+        savedStateHandle[KEY_QUERY] = query
+        // Any pending debounce belongs to an older query — including when the
+        // input has just become a URL, where the search that was already in
+        // flight used to land afterwards and replace the screen with stale
+        // results (issue P2).
+        searchJob?.cancel()
         // Clearing the field returns to the Browse-by-theme landing rather than
         // leaving stale results (or an error) on screen.
         if (query.isEmpty()) {
-            searchJob?.cancel()
             _state.value = _state.value.copy(query = "", results = emptyList(), error = null)
             return
         }
         _state.value = _state.value.copy(query = query)
         // Debounced as-you-type search; a raw URL waits for an explicit submit.
         if (!looksLikeUrl(query)) {
-            searchJob?.cancel()
             searchJob = viewModelScope.launch {
                 delay(SEARCH_DEBOUNCE_MS)
                 runSearch(query.trim())
@@ -173,5 +183,7 @@ class SearchViewModel @Inject constructor(
 
     companion object {
         private const val SEARCH_DEBOUNCE_MS = 350L
+
+        private const val KEY_QUERY = "search_query"
     }
 }

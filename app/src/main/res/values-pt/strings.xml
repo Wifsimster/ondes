@@ -108,6 +108,8 @@
     <string name="sleep">Timer</string>
     <string name="sleep_end">Fim</string>
     <string name="minutes_short">%1$d min</string>
+    <string name="onboarding_added_count">%1$d de %2$d podcasts adicionados</string>
+    <string name="duration_hours_minutes">%1$d h %2$02d min</string>
     <string name="end_of_episode">Fim do episódio</string>
     <string name="cancel_timer">Cancelar timer</string>
     <string name="open_player">Abrir player</string>
@@ -137,6 +139,8 @@
     <string name="bg_refresh_subtitle">Verificar novos episódios periodicamente</string>
     <string name="new_episode_notifs_title">Notificações de novos episódios</string>
     <string name="new_episode_notifs_subtitle">Avisar quando minhas inscrições publicarem novos episódios</string>
+    <string name="notifs_blocked_title">As notificações estão desativadas</string>
+    <string name="notifs_blocked_subtitle">O Android está a bloquear as notificações do Ondes. Toque para as permitir.</string>
     <string name="settings_appearance">Aparência</string>
     <string name="theme">Tema</string>
     <string name="dynamic_color_title">Cor dinâmica</string>

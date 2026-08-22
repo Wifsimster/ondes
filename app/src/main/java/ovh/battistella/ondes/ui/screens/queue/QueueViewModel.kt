@@ -11,10 +11,13 @@ import ovh.battistella.ondes.playback.NowPlaying
 import ovh.battistella.ondes.playback.PlaybackConnection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -27,8 +30,31 @@ class QueueViewModel @Inject constructor(
     private val snackbar: SnackbarController,
 ) : ViewModel() {
 
-    val queue: StateFlow<List<EpisodeEntity>> = repository.observeQueue()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    /**
+     * The order the user has just asked for, held until the database catches up.
+     *
+     * A move used to be applied only once Room had written it and the query had
+     * re-emitted, so tapping "up" twice quickly read a stale list for the second
+     * tap and the move was lost (issue P2). Showing the intended order right
+     * away makes each tap build on the previous one.
+     */
+    private val pendingOrder = MutableStateFlow<List<String>?>(null)
+
+    private val storedQueue = repository.observeQueue()
+        .onEach { items ->
+            // The write landed — stop overriding.
+            if (pendingOrder.value == items.map { it.id }) pendingOrder.value = null
+        }
+
+    val queue: StateFlow<List<EpisodeEntity>> =
+        combine(storedQueue, pendingOrder) { items, pending ->
+            if (pending == null) return@combine items
+            val byId = items.associateBy { it.id }
+            val reordered = pending.mapNotNull(byId::get)
+            // A queue that changed underneath us (an episode finished and left)
+            // invalidates the pending order — fall back to what's stored.
+            if (reordered.size != items.size) items else reordered
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Minimal now-playing signal for the rows; position ticks are dropped so the
     // queue doesn't recompose on every tick during playback (opt. 3).
@@ -75,10 +101,17 @@ class QueueViewModel @Inject constructor(
     fun moveDown(index: Int) = reorder(index, index + 1)
 
     private fun reorder(from: Int, to: Int) {
-        val ids = queue.value.map { it.id }.toMutableList()
+        val stored = queue.value.map { it.id }
+        // Build on the order already asked for, if it still describes the same
+        // queue: a second tap must not read back a list the first tap's write
+        // hasn't reached yet (issue P2).
+        val ids = (pendingOrder.value?.takeIf { it.toSet() == stored.toSet() } ?: stored)
+            .toMutableList()
         if (from !in ids.indices || to !in ids.indices) return
         val moved = ids.removeAt(from)
         ids.add(to, moved)
+        // Show the new order now; the database write follows.
+        pendingOrder.value = ids
         viewModelScope.launch { repository.setQueueOrder(ids) }
     }
 }

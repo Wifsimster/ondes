@@ -25,6 +25,7 @@ import ovh.battistella.ondes.playback.PlaybackConnection
 import ovh.battistella.ondes.playback.PlayerUiState
 import ovh.battistella.ondes.testing.TestSupport
 import ovh.battistella.ondes.ui.theme.OndesTheme
+import ovh.battistella.ondes.common.SnackbarController
 
 @RunWith(RobolectricTestRunner::class)
 class HomeScreenTest {
@@ -32,6 +33,7 @@ class HomeScreenTest {
     @get:Rule val compose = createComposeRule()
 
     private val context = ApplicationProvider.getApplicationContext<Context>()
+    private val snackbar = SnackbarController()
     private val downloadManager = mockk<DownloadManager>(relaxed = true)
     private lateinit var db: OndesDatabase
     private lateinit var repo: PodcastRepository
@@ -41,7 +43,7 @@ class HomeScreenTest {
         db = TestSupport.inMemoryDb()
         repo = TestSupport.repository(db, Dispatchers.Unconfined)
         connection = TestSupport.mockConnection(MutableStateFlow(PlayerUiState()))
-        return HomeViewModel(repo, connection, downloadManager)
+        return HomeViewModel(context, repo, connection, downloadManager, snackbar, Dispatchers.Unconfined)
     }
 
     @After fun tearDown() {

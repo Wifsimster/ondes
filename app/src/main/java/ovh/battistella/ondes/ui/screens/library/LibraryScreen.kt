@@ -47,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -87,7 +88,9 @@ fun LibraryScreen(
     val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     val selected by viewModel.selectedFeedUrls.collectAsStateWithLifecycle()
-    var tab by remember { mutableStateOf(LibraryTab.PODCASTS) }
+    // rememberSaveable: the picked tab used to snap back to Podcasts on rotation
+    // (issue P2).
+    var tab by rememberSaveable { mutableStateOf(LibraryTab.PODCASTS) }
     var showConfirm by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 

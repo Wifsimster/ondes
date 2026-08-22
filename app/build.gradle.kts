@@ -112,6 +112,15 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    sourceSets {
+        // The exported Room schemas are put on the unit-test classpath (AGP does
+        // not merge src/test/assets) so MigrationTest can build a database at an
+        // older version and run the real migration against it. Instrumented tests
+        // read the same files from assets, where MigrationTestHelper expects them.
+        getByName("test").resources.srcDir(layout.projectDirectory.dir("schemas"))
+        getByName("androidTest").assets.srcDir(layout.projectDirectory.dir("schemas"))
+    }
+
     testOptions {
         unitTests {
             // Robolectric + Compose UI tests need the merged Android resources and
@@ -120,6 +129,12 @@ android {
             isReturnDefaultValues = true
         }
     }
+}
+
+// Export a JSON schema per database version into app/schemas. Checked in, they
+// are the reference MigrationTest validates each migration against (issue P1-10).
+ksp {
+    arg("room.schemaLocation", layout.projectDirectory.dir("schemas").asFile.path)
 }
 
 dependencies {

@@ -1,7 +1,10 @@
 package ovh.battistella.ondes.ui.screens.home
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ovh.battistella.ondes.R
+import ovh.battistella.ondes.common.SnackbarController
 import ovh.battistella.ondes.data.local.DownloadState
 import ovh.battistella.ondes.data.local.EpisodeEntity
 import ovh.battistella.ondes.data.repository.PodcastRepository
@@ -9,7 +12,9 @@ import ovh.battistella.ondes.download.DownloadManager
 import ovh.battistella.ondes.playback.NowPlaying
 import ovh.battistella.ondes.playback.PlaybackConnection
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,9 +37,13 @@ data class HomeUiState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: PodcastRepository,
     private val connection: PlaybackConnection,
     private val downloadManager: DownloadManager,
+    private val snackbar: SnackbarController,
+    /** Injected so a refresh is driven by the test scheduler, not a real thread. */
+    private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -56,11 +65,21 @@ class HomeViewModel @Inject constructor(
     val refreshing = _refreshing.asStateFlow()
 
     fun refresh() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             _refreshing.value = true
-            val feeds = repository.observeSubscriptions().first().map { it.feedUrl }
-            repository.refreshAllSubscriptions(feeds)
-            _refreshing.value = false
+            try {
+                val feeds = repository.observeSubscriptions().first().map { it.feedUrl }
+                repository.refreshAllSubscriptions(feeds)
+            } catch (c: CancellationException) {
+                throw c
+            } catch (t: Throwable) {
+                // Say so instead of just stopping the spinner with no explanation.
+                snackbar.show(context.getString(R.string.data_op_failed))
+            } finally {
+                // finally: a throw used to leave the pull-to-refresh spinner
+                // turning forever (issue P2).
+                _refreshing.value = false
+            }
         }
     }
 

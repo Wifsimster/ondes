@@ -46,6 +46,7 @@ class EpisodeDownloadWorker @AssistedInject constructor(
 
         val target = DownloadFiles.target(applicationContext, episodeId)
         val part = DownloadFiles.partFile(applicationContext, episodeId)
+        val meta = DownloadFiles.metaFile(applicationContext, episodeId)
         part.parentFile?.mkdirs()
 
         // All the blocking socket/file I/O runs on Dispatchers.IO — the default
@@ -53,40 +54,43 @@ class EpisodeDownloadWorker @AssistedInject constructor(
         // should not be tied up on long streaming reads (issue P1-12).
         return withContext(Dispatchers.IO) {
             try {
-                streamToPart(episode.audioUrl, part, episodeId)
+                streamToPart(episode.audioUrl, part, meta, episodeId)
                 promote(part, target)
+                meta.delete()
                 repository.updateDownload(
                     episodeId, DownloadState.DOWNLOADED, 100, target.absolutePath,
                 )
                 Result.success()
             } catch (c: CancellationException) {
-                // Cooperative stop (constraint lost / user cancel). Drop the partial
-                // file — we don't resume — and let WorkManager own the outcome. A
-                // user-initiated cancel is finalised in DownloadManager.cancel();
-                // don't write a misleading FAILED here (issue P1-11).
-                part.delete()
+                // Cooperative stop (constraint lost, or the user cancelled). The
+                // partial file and its validator are deliberately KEPT so
+                // WorkManager's re-run resumes from where this one stopped instead
+                // of re-downloading over metered data (opt. 5); a user-initiated
+                // cancel deletes them in DownloadManager.cancel(). Don't write a
+                // misleading FAILED here (issue P1-11).
                 throw c
             } catch (p: PermanentHttpException) {
                 // A 4xx status — retrying the same request won't help, so fail fast.
-                part.delete()
+                discardPartial(part, meta)
                 repository.updateDownload(episodeId, DownloadState.FAILED, 0, null)
                 Result.failure()
             } catch (io: IOException) {
-                // A dropped connection is transient. Drop the partial first, then
-                // distinguish a genuine network failure from a stop: if the worker
-                // was stopped, ensureActive() rethrows CancellationException rather
-                // than recording a misleading FAILED (issues P1-11, P1-12).
-                part.delete()
+                // A dropped connection is transient. Distinguish a genuine network
+                // failure from a stop: if the worker was stopped, ensureActive()
+                // rethrows CancellationException rather than recording a
+                // misleading FAILED (issues P1-11, P1-12).
                 coroutineContext.ensureActive()
                 if (runAttemptCount < MAX_ATTEMPTS) {
+                    // Keep the bytes already on disk; the retry resumes them.
                     repository.updateDownload(episodeId, DownloadState.QUEUED, 0, null)
                     Result.retry()
                 } else {
+                    discardPartial(part, meta)
                     repository.updateDownload(episodeId, DownloadState.FAILED, 0, null)
                     Result.failure()
                 }
             } catch (t: Throwable) {
-                part.delete()
+                discardPartial(part, meta)
                 repository.updateDownload(episodeId, DownloadState.FAILED, 0, null)
                 Result.failure()
             }
@@ -94,23 +98,52 @@ class EpisodeDownloadWorker @AssistedInject constructor(
     }
 
     /**
-     * Stream the response body into [part], reporting progress. Throws on any
-     * non-success HTTP status, and on a truncated body (bytes read ≠
-     * Content-Length) so a clean early close can't masquerade as a complete
-     * download (issue P0-5).
+     * Stream the episode into [part], resuming an earlier attempt when possible,
+     * and report progress.
+     *
+     * A partial file is only resumed against the validator recorded in [meta]:
+     * the request carries `If-Range`, so a server whose file has since changed
+     * (a rotated or re-encoded enclosure) answers `200` with the whole body and
+     * the stale bytes are dropped rather than silently spliced onto new ones
+     * (opt. 5). Throws on any non-success status, and on a truncated body (bytes
+     * on disk ≠ Content-Length) so a clean early close can't masquerade as a
+     * complete download (issue P0-5).
      */
-    private suspend fun streamToPart(url: String, part: File, episodeId: String) {
-        client.newCall(Request.Builder().url(url).build()).execute().use { response ->
+    private suspend fun streamToPart(url: String, part: File, meta: File, episodeId: String) {
+        val resumeFrom = PartialDownload.read(meta)?.validator
+            ?.takeIf { part.isFile && part.length() > 0 }
+            ?.let { validator -> ResumePoint(part.length(), validator) }
+
+        val request = Request.Builder().url(url).apply {
+            resumeFrom?.let {
+                header("Range", "bytes=${it.offset}-")
+                header("If-Range", it.validator)
+            }
+        }.build()
+
+        client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 if (response.isTransient()) throw IOException("transient HTTP ${response.code}")
                 throw PermanentHttpException(response.code)
             }
+            // 206 means the server honoured the range; anything else (including a
+            // 200 because the validator no longer matches) restarts from zero.
+            val appending = response.code == HTTP_PARTIAL_CONTENT && resumeFrom != null
+            val startAt = if (appending) resumeFrom.offset else 0L
             val body = response.body ?: throw IOException("empty response body")
-            val total = body.contentLength()
-            var downloaded = 0L
+            val total = body.contentLength().takeIf { it > 0 }?.plus(startAt) ?: 0L
+
+            // Record what these bytes belong to, so the next attempt can decide
+            // whether resuming them is safe.
+            PartialDownload(
+                validator = response.header("ETag") ?: response.header("Last-Modified"),
+                totalBytes = total,
+            ).write(meta)
+
+            var downloaded = startAt
             var lastReported = -1
             body.byteStream().use { input ->
-                FileOutputStream(part).use { output ->
+                FileOutputStream(part, /* append = */ appending).use { output ->
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
                         // Cooperative cancellation: CoroutineWorker cancels this
@@ -142,6 +175,14 @@ class EpisodeDownloadWorker @AssistedInject constructor(
                 throw IOException("truncated download: $downloaded/$total bytes")
             }
         }
+    }
+
+    /** Where a resumed request should pick up, and the file it belongs to. */
+    private data class ResumePoint(val offset: Long, val validator: String)
+
+    private fun discardPartial(part: File, meta: File) {
+        part.delete()
+        meta.delete()
     }
 
     /** Atomically publish the verified partial file as the final download. */
@@ -184,5 +225,7 @@ class EpisodeDownloadWorker @AssistedInject constructor(
 
         /** Total tries (initial + retries) before a download is marked FAILED. */
         private const val MAX_ATTEMPTS = 3
+
+        private const val HTTP_PARTIAL_CONTENT = 206
     }
 }

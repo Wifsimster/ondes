@@ -20,6 +20,7 @@ import ovh.battistella.ondes.data.local.OndesDatabase
 import ovh.battistella.ondes.data.repository.PodcastRepository
 import ovh.battistella.ondes.testing.TestSupport
 import ovh.battistella.ondes.ui.theme.OndesTheme
+import androidx.lifecycle.SavedStateHandle
 
 @RunWith(RobolectricTestRunner::class)
 class LibraryScreenTest {
@@ -34,7 +35,7 @@ class LibraryScreenTest {
     private fun build(): LibraryViewModel {
         db = TestSupport.inMemoryDb()
         repo = TestSupport.repository(db, Dispatchers.Unconfined)
-        return LibraryViewModel(repo, snackbar, context)
+        return LibraryViewModel(SavedStateHandle(), repo, snackbar, context)
     }
 
     @After fun tearDown() {

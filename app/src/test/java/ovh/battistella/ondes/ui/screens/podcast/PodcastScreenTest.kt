@@ -45,10 +45,10 @@ class PodcastScreenTest {
         db = TestSupport.inMemoryDb()
         repo = TestSupport.repository(db, Dispatchers.Unconfined, rss = rss)
         connection = TestSupport.mockConnection(MutableStateFlow(PlayerUiState()))
-        every { rss.fetchAndParse(feedUrl) } returns TestSupport.parsedFeed(
+        every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(TestSupport.parsedFeed(
             title = "My Show",
             episodes = listOf(TestSupport.parsedEpisode(guid = "ep-1", title = "Kotlin Weekly")),
-        )
+        ))
         return PodcastViewModel(
             context = context,
             savedStateHandle = SavedStateHandle(mapOf("feedUrl" to feedUrl)),
@@ -56,6 +56,7 @@ class PodcastScreenTest {
             connection = connection,
             downloadManager = downloadManager,
             snackbar = snackbar,
+            ioDispatcher = Dispatchers.Unconfined,
         )
     }
 

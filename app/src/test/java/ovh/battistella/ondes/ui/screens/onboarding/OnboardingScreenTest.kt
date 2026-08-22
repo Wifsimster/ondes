@@ -19,6 +19,7 @@ import ovh.battistella.ondes.data.repository.PodcastRepository
 import ovh.battistella.ondes.data.settings.SettingsRepository
 import ovh.battistella.ondes.testing.TestSupport
 import ovh.battistella.ondes.ui.theme.OndesTheme
+import ovh.battistella.ondes.common.SnackbarController
 
 @RunWith(RobolectricTestRunner::class)
 class OnboardingScreenTest {
@@ -32,7 +33,7 @@ class OnboardingScreenTest {
     private fun build(): OnboardingViewModel {
         db = TestSupport.inMemoryDb()
         repo = TestSupport.repository(db, Dispatchers.Unconfined)
-        return OnboardingViewModel(repo, mockk<SettingsRepository>(relaxed = true))
+        return OnboardingViewModel(context, repo, mockk<SettingsRepository>(relaxed = true), SnackbarController())
     }
 
     @After fun tearDown() {

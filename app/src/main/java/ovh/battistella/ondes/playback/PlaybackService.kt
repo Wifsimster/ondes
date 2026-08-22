@@ -10,12 +10,14 @@ import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSession.MediaItemsWithStartPosition
 import androidx.media3.session.SessionResult
 import ovh.battistella.ondes.MainActivity
+import ovh.battistella.ondes.R
 import ovh.battistella.ondes.data.repository.PodcastRepository
 import ovh.battistella.ondes.data.settings.OndesSettings
 import ovh.battistella.ondes.data.settings.SettingsRepository
@@ -86,6 +88,7 @@ class PlaybackService : MediaLibraryService() {
             settingsRepository.settings.collect {
                 settings = it
                 applyAudioEffects()
+                applyMediaButtonPreferences()
             }
         }
 
@@ -177,12 +180,62 @@ class PlaybackService : MediaLibraryService() {
             }
         }
         mediaSession = MediaLibrarySession.Builder(this, sessionPlayer, LibraryCallback())
+            // Podcast transport: ±N s skip buttons instead of previous/next
+            // track, which is what the notification, Android Auto and Wear all
+            // showed by default (opt. 6). The intervals follow the user's
+            // settings, so the icons re-render when those change.
+            .setMediaButtonPreferences(mediaButtonPreferences())
             // Wire the media notification (and lock-screen / "island" capsule) to
             // reopen the app when tapped or expanded. Media3 uses the session
             // activity as the notification's content intent; without it a tap is a
             // no-op. singleTop keeps the running instance instead of recreating it.
             .setSessionActivity(openAppIntent())
             .build()
+    }
+
+    /**
+     * Skip-back / skip-forward buttons for the media notification, Android Auto
+     * and Wear, labelled with the user's own intervals. They drive the player's
+     * seekBack/seekForward commands, which the session's [ForwardingPlayer]
+     * resolves against the live settings.
+     */
+    private fun mediaButtonPreferences(): List<CommandButton> = listOf(
+        CommandButton.Builder(skipBackIcon(settings.skipBackMs))
+            .setPlayerCommand(Player.COMMAND_SEEK_BACK)
+            .setDisplayName(
+                getString(R.string.skip_back_secs, (settings.skipBackMs / 1_000L).toInt()),
+            )
+            .build(),
+        CommandButton.Builder(skipForwardIcon(settings.skipForwardMs))
+            .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+            .setDisplayName(
+                getString(R.string.skip_forward_secs, (settings.skipForwardMs / 1_000L).toInt()),
+            )
+            .build(),
+    )
+
+    private fun applyMediaButtonPreferences() {
+        mediaSession?.setMediaButtonPreferences(mediaButtonPreferences())
+    }
+
+    /** The stock icon closest to the chosen interval (Media3 ships 5/10/15/30 s). */
+    private fun skipBackIcon(ms: Long): Int = when (nearestSkipSeconds(ms)) {
+        5 -> CommandButton.ICON_SKIP_BACK_5
+        10 -> CommandButton.ICON_SKIP_BACK_10
+        15 -> CommandButton.ICON_SKIP_BACK_15
+        else -> CommandButton.ICON_SKIP_BACK_30
+    }
+
+    private fun skipForwardIcon(ms: Long): Int = when (nearestSkipSeconds(ms)) {
+        5 -> CommandButton.ICON_SKIP_FORWARD_5
+        10 -> CommandButton.ICON_SKIP_FORWARD_10
+        15 -> CommandButton.ICON_SKIP_FORWARD_15
+        else -> CommandButton.ICON_SKIP_FORWARD_30
+    }
+
+    private fun nearestSkipSeconds(ms: Long): Int {
+        val seconds = (ms / 1_000L).toInt()
+        return listOf(5, 10, 15, 30).minByOrNull { kotlin.math.abs(it - seconds) } ?: 30
     }
 
     /** PendingIntent that brings [MainActivity] to the foreground when the media notification is tapped. */
@@ -229,7 +282,11 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onTaskRemoved(rootIntent: android.content.Intent?) {
         // Keep playing in the background if media is active; otherwise stop.
-        if (!player.playWhenReady || player.mediaItemCount == 0) {
+        // STATE_ENDED counts as inactive: the player leaves playWhenReady set
+        // after the queue plays out, so an idle service used to survive being
+        // swiped away with nothing left to play (issue P2).
+        val ended = player.playbackState == Player.STATE_ENDED
+        if (!player.playWhenReady || player.mediaItemCount == 0 || ended) {
             stopSelf()
         }
     }
@@ -337,6 +394,22 @@ class PlaybackService : MediaLibraryService() {
             mediaItems: List<MediaItem>,
         ): ListenableFuture<List<MediaItem>> = scope.future(Dispatchers.IO) {
             libraryTree.resolve(mediaItems)
+        }
+
+        /**
+         * Answer the system's "resume what was playing" request (headset or
+         * Bluetooth play after process death, Android Auto's resume card). With
+         * no implementation the play button stayed silent until the user opened
+         * the app by hand (issue P1-2).
+         */
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaItemsWithStartPosition> = scope.future(Dispatchers.IO) {
+            runCatching { libraryTree.resumption() }.getOrElse {
+                Log.e(TAG, "onPlaybackResumption failed", it)
+                MediaItemsWithStartPosition(emptyList(), 0, 0L)
+            }
         }
 
         override fun onSetMediaItems(

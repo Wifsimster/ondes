@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import ovh.battistella.ondes.MainActivity
 import ovh.battistella.ondes.R
 import ovh.battistella.ondes.data.repository.NewEpisodeBatch
+import java.security.MessageDigest
 
 /**
  * Builds and posts "new episodes available" notifications — one per podcast,
@@ -28,6 +29,14 @@ object NewEpisodeNotifier {
 
     private const val GROUP_KEY = "ovh.battistella.ondes.NEW_EPISODES"
     private const val SUMMARY_ID = 1001
+
+    /**
+     * Per-feed notification ids live in [FEED_ID_BASE, FEED_ID_BASE + FEED_ID_RANGE),
+     * well clear of the fixed ids used by the summary (1001) and the download
+     * worker (2001).
+     */
+    private const val FEED_ID_BASE = 100_000
+    private const val FEED_ID_RANGE = 1_000_000L
     private const val MAX_LINES = 5
 
     fun createChannel(context: Context) {
@@ -121,8 +130,10 @@ object NewEpisodeNotifier {
                 Intent.FLAG_ACTIVITY_SINGLE_TOP
             if (feedUrl != null) putExtra(EXTRA_OPEN_FEED_URL, feedUrl)
         }
-        // Distinct request code per podcast so each PendingIntent keeps its own extras.
-        val requestCode = feedUrl?.hashCode() ?: 0
+        // Distinct request code per podcast so each PendingIntent keeps its own
+        // extras; the same derivation as the notification id, so the two can't
+        // drift apart.
+        val requestCode = feedUrl?.let(::notificationId) ?: SUMMARY_ID
         return PendingIntent.getActivity(
             context,
             requestCode,
@@ -131,10 +142,20 @@ object NewEpisodeNotifier {
         )
     }
 
-    /** A stable id per feed, kept clear of the group-summary id. */
+    /**
+     * A stable id per feed, confined to a range of its own.
+     *
+     * A raw 32-bit [String.hashCode] can land on any int — including the group
+     * summary or the download worker's fixed id, whose notification it would
+     * then replace (issue P2). Folding a SHA-256 into a dedicated block keeps
+     * feeds clear of every reserved id, and collisions between two feeds down to
+     * chance in a 1,000,000-wide range rather than hash luck.
+     */
     private fun notificationId(feedUrl: String): Int {
-        val hash = feedUrl.hashCode()
-        return if (hash == SUMMARY_ID) SUMMARY_ID + 1 else hash
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(feedUrl.toByteArray(Charsets.UTF_8))
+        val value = (0 until 4).fold(0L) { acc, i -> (acc shl 8) or (digest[i].toLong() and 0xFF) }
+        return FEED_ID_BASE + (value % FEED_ID_RANGE).toInt()
     }
 
     private fun hasPermission(context: Context): Boolean =

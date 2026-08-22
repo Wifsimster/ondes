@@ -147,6 +147,39 @@ class MediaLibraryTree @Inject constructor(
         return MediaItemsWithStartPosition(resolved, index, position)
     }
 
+    /**
+     * What the session should load when the system asks it to resume playback
+     * after the process was killed — a Bluetooth or headset play button, Android
+     * Auto's resume card, a media notification restored by the system.
+     *
+     * Without an answer here the play button simply did nothing until the user
+     * opened the app first (issue P1-2). Resumption starts from the episode the
+     * user listened to most recently, at its saved position, with the rest of the
+     * Up-Next queue behind it.
+     */
+    suspend fun resumption(): MediaItemsWithStartPosition {
+        val queue = repository.getQueueOnce()
+        val mostRecent = repository.getInProgressOnce().firstOrNull()
+        val ordered = when (mostRecent) {
+            null -> queue
+            else -> listOf(mostRecent) + queue.filterNot { it.id == mostRecent.id }
+        }
+        // Keep each episode next to its resolved item so the start position is
+        // read off the episode that actually ends up first (an unplayable head —
+        // deleted download, unsafe URL — is dropped).
+        val playable = ordered.mapNotNull { episode ->
+            MediaItems.playable(episode)?.let { episode to it }
+        }
+        val head = playable.firstOrNull()
+            ?: return MediaItemsWithStartPosition(emptyList(), 0, 0L)
+        Log.i(TAG, "resumption: ${playable.size} items, head='${head.first.title}'")
+        return MediaItemsWithStartPosition(
+            playable.map { it.second },
+            /* startIndex = */ 0,
+            head.first.positionMs.coerceAtLeast(0),
+        )
+    }
+
     private fun appName(): String = context.getString(R.string.app_name)
 
     private fun podcastItem(podcast: PodcastEntity): MediaItem =

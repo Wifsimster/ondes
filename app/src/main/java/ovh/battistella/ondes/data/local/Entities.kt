@@ -21,6 +21,13 @@ data class PodcastEntity(
     val overrideSpeed: Float? = null,
     /** Auto-download newly published episodes for this subscription. */
     @ColumnInfo(defaultValue = "0") val autoDownload: Boolean = false,
+    /**
+     * Validators from the last successful feed fetch, replayed as
+     * `If-None-Match` / `If-Modified-Since` so an unchanged feed answers 304 and
+     * costs neither a full download nor a re-parse (opt. 1).
+     */
+    val etag: String? = null,
+    val lastModified: String? = null,
 )
 
 @Entity(
@@ -28,7 +35,7 @@ data class PodcastEntity(
     indices = [Index("feedUrl"), Index("pubDate"), Index("downloadState")],
 )
 data class EpisodeEntity(
-    @PrimaryKey val id: String,            // guid (or audioUrl fallback)
+    @PrimaryKey val id: String,            // feed-scoped id, see [episodeId]
     val feedUrl: String,
     val title: String,
     val description: String,
@@ -43,7 +50,24 @@ data class EpisodeEntity(
     val localFilePath: String? = null,
     val downloadProgress: Int = 0,         // 0..100
     val chaptersUrl: String? = null,       // Podcasting 2.0 chapters JSON URL
+    /** When this episode was last played, for "Continue listening" ordering. */
+    @ColumnInfo(defaultValue = "0") val lastPlayedAt: Long = 0L,
 )
+
+/**
+ * The primary key for an episode, scoped to the feed that published it.
+ *
+ * A feed GUID is only guaranteed unique *within* its own feed, and plenty of
+ * feeds number their items `1`, `2`, `3`. Keyed on the bare GUID, the second
+ * subscription to reuse one lost its episode to `INSERT ... IGNORE` — silently,
+ * and forever (issue P0-7). Prefixing with the feed URL makes identity
+ * per-feed while staying a pure function of the feed data, so it can be
+ * recomputed on every refresh without a lookup table.
+ */
+fun episodeId(feedUrl: String, guid: String): String = "$feedUrl$EPISODE_ID_SEPARATOR$guid"
+
+/** Separator between the feed URL and the per-feed GUID in an episode id. */
+const val EPISODE_ID_SEPARATOR = "::"
 
 /** A single chapter marker within an episode. */
 data class Chapter(

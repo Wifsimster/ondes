@@ -20,6 +20,7 @@ import ovh.battistella.ondes.data.local.OndesDatabase
 import ovh.battistella.ondes.data.repository.PodcastRepository
 import ovh.battistella.ondes.testing.MainDispatcherRule
 import ovh.battistella.ondes.testing.TestSupport
+import androidx.lifecycle.SavedStateHandle
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -35,7 +36,7 @@ class LibraryViewModelTest {
     private fun build(): LibraryViewModel {
         db = TestSupport.inMemoryDb()
         repo = TestSupport.repository(db, mainDispatcher.dispatcher)
-        return LibraryViewModel(repo, snackbar, context)
+        return LibraryViewModel(SavedStateHandle(), repo, snackbar, context)
     }
 
     @After fun tearDown() {
