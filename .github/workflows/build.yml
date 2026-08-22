@@ -111,16 +111,47 @@ jobs:
           chmod +x scripts/check-16kb-alignment.sh
           ./scripts/check-16kb-alignment.sh app/build/outputs/bundle/release/app-release.aab
 
+      # Stage the downloadable assets under stable filenames (so the README's
+      # permalinks keep resolving) plus a checksum file, which is what lets
+      # someone verify a sideloaded APK against what CI actually built.
+      - name: Stage download assets (main only)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/app-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk dist/app-release.apk
+          (cd dist && sha256sum app-debug.apk app-release.apk > SHA256SUMS.txt)
+          cat dist/SHA256SUMS.txt
+
+      # Rolling "latest" release: a one-tap, login-free download of the current
+      # main build. Marked as a pre-release / not-latest so it never displaces
+      # the semantic-release version tag that /releases/latest resolves to.
       - name: Publish rolling release (main only)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: Ondes — latest build
+          prerelease: true
+          make_latest: false
           files: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/release/*.apk
-          body: >
-            Latest automatically built APK. Download an APK below
-            (`app-debug.apk` is simplest), allow "install from unknown sources"
-            on your phone, then open it to install.
+            dist/app-debug.apk
+            dist/app-release.apk
+            dist/SHA256SUMS.txt
+          body: |
+            Automatic build of `main` (commit ${{ github.sha }}).
+            No GitHub account needed — tap a link below on your phone.
+
+            | Download | Size | Use it for |
+            |---|---|---|
+            | [**app-release.apk**](https://github.com/${{ github.repository }}/releases/download/latest/app-release.apk) | ~4 MB | Everyday use (minified) |
+            | [app-debug.apk](https://github.com/${{ github.repository }}/releases/download/latest/app-debug.apk) | ~25 MB | Debugging / bug reports |
+
+            Then allow *install from unknown sources* when Android asks, and open the file to install.
+
+            Both APKs are debug-signed for sideloading. Verify a download against
+            [`SHA256SUMS.txt`](https://github.com/${{ github.repository }}/releases/download/latest/SHA256SUMS.txt)
+            with `sha256sum -c SHA256SUMS.txt`.
+
+            Looking for a stable version instead? See the
+            [latest release](https://github.com/${{ github.repository }}/releases/latest).

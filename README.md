@@ -18,8 +18,14 @@ phone, from the lock screen, or hands-free in the car.
 - 🚗 **Android Auto** — browse and play hands-free
 - 🌍 **5 languages**, light & dark, Material You
 
-👉 **[Get the APK](#get-the-apk-on-your-phone)** — installs in under a minute, no
-store account required.
+<p align="center">
+  <a href="https://github.com/Wifsimster/ondes/releases/latest/download/app-release.apk"><img src="https://img.shields.io/badge/Download-Ondes%20APK-4F46E5?style=for-the-badge&logo=android&logoColor=white" alt="Download the Ondes APK" /></a>
+  <a href="https://github.com/Wifsimster/ondes/releases/latest"><img src="https://img.shields.io/github/v/release/Wifsimster/ondes?style=for-the-badge&label=version&color=4F46E5" alt="Latest release" /></a>
+</p>
+
+👉 **[Download the APK](https://github.com/Wifsimster/ondes/releases/latest/download/app-release.apk)**
+— straight from the latest GitHub release. Installs in under a minute: no store
+account, and no GitHub account either. [More install options](#get-the-apk-on-your-phone).
 
 ## Screenshots
 
@@ -81,14 +87,22 @@ store account required.
 > funds the work. Try it free here first; buy it on Play if it earns a spot on
 > your phone.
 
-**Easiest — from CI:** every push builds an installable APK.
-1. Open the repo's **Actions** tab → latest **Build APK** run.
-2. Download the **`ondes-release-apk`** artifact and unzip it.
-3. Copy `app-release.apk` to your phone, tap it, allow *install from unknown
-   sources*, install.
+**Easiest — one tap from a GitHub Release** (public download, no account):
 
-   (When building from `main`, the same APKs are also attached to the rolling
-   **`latest`** GitHub Release for a one-tap download on the phone.)
+| Build | Download | What it is |
+|-------|----------|------------|
+| **Stable** | [**app-release.apk**](https://github.com/Wifsimster/ondes/releases/latest/download/app-release.apk) | The latest tagged version — start here |
+| Nightly | [app-release.apk](https://github.com/Wifsimster/ondes/releases/download/latest/app-release.apk) · [app-debug.apk](https://github.com/Wifsimster/ondes/releases/download/latest/app-debug.apk) | Tip of `main`, rebuilt on every push |
+
+Open the link on your phone, allow *install from unknown sources* when Android
+asks, then tap the downloaded file. Each release also ships a `SHA256SUMS.txt`,
+so you can check what you downloaded is what CI built:
+`sha256sum -c SHA256SUMS.txt`.
+
+**Testing a branch or a PR:** every push — on any branch — uploads
+`ondes-release-apk` and `ondes-debug-apk` artifacts to its **Actions** run.
+Downloading an artifact does require being signed in to GitHub; the release
+links above do not.
 
 **Build it yourself:**
 ```bash
