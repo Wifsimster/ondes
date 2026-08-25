@@ -61,6 +61,7 @@ class SettingsRepository @Inject constructor(
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+        val LAST_REFRESH_AT = longPreferencesKey("last_refresh_at")
     }
 
     val settings: Flow<OndesSettings> = context.dataStore.data.map { p ->
@@ -82,6 +83,16 @@ class SettingsRepository @Inject constructor(
             onboardingDone = p[Keys.ONBOARDING_DONE] ?: defaults.onboardingDone,
         )
     }
+
+    /**
+     * When the background refresh last completed, or 0 if it never has.
+     *
+     * Deliberately outside [OndesSettings]: it is a fact about this device, not a
+     * preference, so it is neither backed up nor restored onto another phone.
+     */
+    val lastRefreshAt: Flow<Long> = context.dataStore.data.map { it[Keys.LAST_REFRESH_AT] ?: 0L }
+
+    suspend fun setLastRefreshAt(value: Long) = edit { it[Keys.LAST_REFRESH_AT] = value }
 
     suspend fun setSkipBackMs(value: Long) = edit { it[Keys.SKIP_BACK] = value }
     suspend fun setSkipForwardMs(value: Long) = edit { it[Keys.SKIP_FORWARD] = value }

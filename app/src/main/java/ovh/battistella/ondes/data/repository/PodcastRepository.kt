@@ -32,8 +32,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * A subscription plus the episodes that were newly published in the latest
- * refresh, so callers can post one notification per podcast (named, grouped).
+ * A subscription plus its episodes that are still owed a "new episode"
+ * notification, so callers can post one per podcast (named, grouped).
  */
 data class NewEpisodeBatch(
     val feedUrl: String,
@@ -115,11 +115,17 @@ class PodcastRepository @Inject constructor(
 
     suspend fun unsubscribe(feedUrl: String) = withContext(ioDispatcher) {
         podcastDao.setSubscribed(feedUrl, false)
+        // Drop anything this feed had queued for announcement, so re-subscribing
+        // later doesn't open with a notification about episodes from before.
+        episodeDao.clearPendingNotificationForFeed(feedUrl)
     }
 
     /** Soft-unsubscribe several feeds at once (library multi-select). */
     suspend fun unsubscribeAll(feedUrls: Collection<String>) = withContext(ioDispatcher) {
-        feedUrls.forEach { podcastDao.setSubscribed(it, false) }
+        feedUrls.forEach {
+            podcastDao.setSubscribed(it, false)
+            episodeDao.clearPendingNotificationForFeed(it)
+        }
     }
 
     /**
@@ -139,6 +145,10 @@ class PodcastRepository @Inject constructor(
     suspend fun refreshFeed(feedUrl: String, markSubscribed: Boolean = false): List<EpisodeEntity> =
         withContext(ioDispatcher) {
             val existing = podcastDao.getPodcast(feedUrl)
+            // A feed nobody has fetched yet arrives as one big back catalogue:
+            // flagging it would announce hundreds of "new" episodes on a fresh
+            // subscribe. Everything after that first fetch is genuinely new.
+            val firstFetch = existing == null || existing.lastUpdated == 0L
             // Replay the validators from the last fetch: an unchanged feed then
             // costs one conditional request instead of a full download + parse
             // (opt. 1). A first fetch, or one we must not short-circuit (a fresh
@@ -194,6 +204,9 @@ class PodcastRepository @Inject constructor(
                     pubDate = e.pubDate,
                     durationMs = e.durationMs,
                     chaptersUrl = e.chaptersUrl.ifEmpty { null },
+                    // Only reaches the database for rows INSERT-IGNORE actually
+                    // inserts; a known episode keeps whatever flag it already has.
+                    pendingNotification = !firstFetch,
                 )
             }
             // One transaction for the whole reconcile: podcast + episodes land
@@ -250,23 +263,35 @@ class PodcastRepository @Inject constructor(
         }
 
     /**
-     * Refresh every subscribed feed and return the newly published episodes,
-     * skipping a podcast's first-ever fetch so an initial subscribe doesn't
-     * spam a notification for the whole back catalogue.
+     * Refresh every subscribed feed, swallowing per-feed failures so one dead
+     * feed doesn't abandon the rest of the cycle.
      */
-    suspend fun refreshSubscriptionsForNew(): List<NewEpisodeBatch> = withContext(ioDispatcher) {
-        val subscriptions = getSubscriptionsOnce()
-        inParallel(subscriptions) { podcast ->
-            val firstFetch = podcast.lastUpdated == 0L
-            val newEpisodes = runCatching { refreshFeed(podcast.feedUrl) }
-                .getOrDefault(emptyList())
-                .takeUnless { firstFetch }
-                ?: emptyList()
-            if (newEpisodes.isEmpty()) return@inParallel null
-            // Re-read so the notification shows the freshly-refreshed title.
-            val title = podcastDao.getPodcast(podcast.feedUrl)?.title ?: podcast.title
-            NewEpisodeBatch(podcast.feedUrl, title, newEpisodes)
-        }.filterNotNull()
+    suspend fun refreshSubscriptions() =
+        refreshAllSubscriptions(getSubscriptionsOnce().map { it.feedUrl })
+
+    /**
+     * Everything that has arrived since the last announcement, grouped per
+     * podcast so each gets its own notification.
+     *
+     * Read from the episodes themselves rather than from the return value of one
+     * refresh call: whichever path fetched the feed — the background worker, a
+     * pull-to-refresh, the podcast screen — the episode is still owed an
+     * announcement until [clearPendingNotifications] says otherwise.
+     */
+    suspend fun pendingNewEpisodes(): List<NewEpisodeBatch> = withContext(ioDispatcher) {
+        episodeDao.getPendingNotification()
+            .groupBy { it.feedUrl }
+            .mapNotNull { (feedUrl, episodes) ->
+                val title = podcastDao.getPodcast(feedUrl)?.title ?: return@mapNotNull null
+                NewEpisodeBatch(feedUrl, title, episodes)
+            }
+    }
+
+    /** Mark episodes as announced so the next refresh doesn't repeat them. */
+    suspend fun clearPendingNotifications(episodeIds: List<String>) = withContext(ioDispatcher) {
+        // SQLite binds a bounded number of arguments per statement; a first
+        // refresh after a long absence can easily exceed it.
+        episodeIds.chunked(CLEAR_CHUNK).forEach { episodeDao.clearPendingNotification(it) }
     }
 
     /**
@@ -374,5 +399,8 @@ class PodcastRepository @Inject constructor(
 
         /** How many feeds may be fetched at once during a fan-out refresh. */
         private const val REFRESH_CONCURRENCY = 5
+
+        /** Episode ids cleared per UPDATE, kept under SQLite's bind-argument cap. */
+        private const val CLEAR_CHUNK = 500
     }
 }

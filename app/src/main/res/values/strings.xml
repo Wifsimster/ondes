@@ -141,6 +141,10 @@
     <string name="new_episode_notifs_subtitle">Notify me when subscriptions publish new episodes</string>
     <string name="notifs_blocked_title">Notifications are turned off</string>
     <string name="notifs_blocked_subtitle">Android is blocking Ondes\' notifications. Tap to allow them.</string>
+    <string name="last_checked_title">Last checked</string>
+    <string name="last_checked_never">Never</string>
+    <string name="battery_limited_title">Battery optimization is on</string>
+    <string name="battery_limited_subtitle">Android can stop Ondes checking for new episodes while it is closed. Tap to allow background activity.</string>
     <string name="settings_appearance">Appearance</string>
     <string name="theme">Theme</string>
     <string name="dynamic_color_title">Dynamic color</string>

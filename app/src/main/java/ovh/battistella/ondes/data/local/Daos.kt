@@ -210,6 +210,31 @@ interface EpisodeDao {
     /** Episodes whose download is still expected to run, so its partial file is not junk. */
     @Query("SELECT id FROM episodes WHERE downloadState IN ('QUEUED', 'DOWNLOADING')")
     suspend fun getPendingDownloadIds(): List<String>
+
+    /**
+     * Episodes that have arrived but not yet been announced, newest first.
+     *
+     * Restricted to feeds the user is still subscribed to: unsubscribing between
+     * the arrival and the announcement should cancel it, not queue it up for the
+     * next refresh.
+     */
+    @Query(
+        """
+        SELECT * FROM episodes
+        WHERE pendingNotification = 1
+          AND feedUrl IN (SELECT feedUrl FROM podcasts WHERE subscribed = 1)
+        ORDER BY pubDate DESC
+        """
+    )
+    suspend fun getPendingNotification(): List<EpisodeEntity>
+
+    /** Mark episodes as announced. Call in chunks: SQLite binds ~999 args at once. */
+    @Query("UPDATE episodes SET pendingNotification = 0 WHERE id IN (:ids)")
+    suspend fun clearPendingNotification(ids: List<String>)
+
+    /** Drop a whole feed's unannounced backlog, e.g. when it is unsubscribed. */
+    @Query("UPDATE episodes SET pendingNotification = 0 WHERE feedUrl = :feedUrl")
+    suspend fun clearPendingNotificationForFeed(feedUrl: String)
 }
 
 @Dao

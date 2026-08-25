@@ -141,6 +141,10 @@
     <string name="new_episode_notifs_subtitle">Benachrichtige mich, wenn Abos neue Folgen veröffentlichen</string>
     <string name="notifs_blocked_title">Benachrichtigungen sind deaktiviert</string>
     <string name="notifs_blocked_subtitle">Android blockiert die Benachrichtigungen von Ondes. Zum Erlauben tippen.</string>
+    <string name="last_checked_title">Zuletzt geprüft</string>
+    <string name="last_checked_never">Nie</string>
+    <string name="battery_limited_title">Akku-Optimierung ist aktiv</string>
+    <string name="battery_limited_subtitle">Android kann Ondes daran hindern, bei geschlossener App nach neuen Folgen zu suchen. Zum Erlauben von Hintergrundaktivität tippen.</string>
     <string name="settings_appearance">Darstellung</string>
     <string name="theme">Design</string>
     <string name="dynamic_color_title">Dynamische Farben</string>

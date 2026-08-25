@@ -52,6 +52,17 @@ data class EpisodeEntity(
     val chaptersUrl: String? = null,       // Podcasting 2.0 chapters JSON URL
     /** When this episode was last played, for "Continue listening" ordering. */
     @ColumnInfo(defaultValue = "0") val lastPlayedAt: Long = 0L,
+    /**
+     * Set when the episode first arrives from a feed the app has fetched before,
+     * cleared once a "new episode" notification has covered it.
+     *
+     * Newness used to be "the rows this one refresh call happened to INSERT", so
+     * whichever refresh saw the episode first owned the only chance to announce
+     * it — and every foreground path (pull-to-refresh, the podcast screen's own
+     * refresh) silently threw that chance away. Stored on the row instead, the
+     * announcement survives whoever inserted it.
+     */
+    @ColumnInfo(defaultValue = "0") val pendingNotification: Boolean = false,
 )
 
 /**

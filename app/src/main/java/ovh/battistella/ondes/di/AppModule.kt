@@ -57,6 +57,7 @@ object AppModule {
                 MIGRATION_3_4,
                 MIGRATION_4_5,
                 MIGRATION_5_6,
+                MIGRATION_6_7,
             )
             .build()
 
@@ -171,6 +172,23 @@ object AppModule {
             // Conditional-GET validators for the feed refresh (opt. 1).
             db.execSQL("ALTER TABLE `podcasts` ADD COLUMN `etag` TEXT")
             db.execSQL("ALTER TABLE `podcasts` ADD COLUMN `lastModified` TEXT")
+        }
+    }
+
+    /**
+     * v7 remembers, per episode, whether a "new episode" notification still owes
+     * the user an announcement.
+     *
+     * Existing rows default to 0: they are the back catalogue, already seen, and
+     * flagging them would turn the first refresh after an update into a wall of
+     * notifications.
+     */
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "ALTER TABLE `episodes` ADD COLUMN `pendingNotification` " +
+                    "INTEGER NOT NULL DEFAULT 0"
+            )
         }
     }
 }
