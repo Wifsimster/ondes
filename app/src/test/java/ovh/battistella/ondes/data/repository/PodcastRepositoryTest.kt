@@ -157,4 +157,104 @@ class PodcastRepositoryTest {
             // "Last checked" moved on even though nothing was re-parsed.
             assert(db.podcastDao().getPodcast(feedUrl)!!.lastUpdated > 0)
         }
+
+    /**
+     * A fresh subscribe pulls in the whole back catalogue; none of it is news.
+     */
+    @Test
+    fun `a first fetch queues nothing for announcement`() = runTest(mainDispatcher.dispatcher) {
+        build()
+        every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(
+            TestSupport.parsedFeed(
+                episodes = listOf(
+                    TestSupport.parsedEpisode(guid = "ep-1"),
+                    TestSupport.parsedEpisode(guid = "ep-2"),
+                ),
+            ),
+        )
+
+        repo.subscribe(feedUrl)
+        advanceUntilIdle()
+
+        assertEquals(emptyList<NewEpisodeBatch>(), repo.pendingNewEpisodes())
+    }
+
+    /**
+     * The bug this whole flag exists for: newness used to be "what this one
+     * refresh call inserted", so the foreground refresh that happened to see the
+     * episode first consumed the only chance to announce it, and the background
+     * worker later found nothing to report.
+     */
+    @Test
+    fun `an episode inserted by a foreground refresh is still announced later`() =
+        runTest(mainDispatcher.dispatcher) {
+            build()
+            every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(
+                TestSupport.parsedFeed(
+                    episodes = listOf(TestSupport.parsedEpisode(guid = "ep-1")),
+                ),
+            )
+            repo.subscribe(feedUrl)
+            advanceUntilIdle()
+
+            // A pull-to-refresh — not the worker — is what picks ep-2 up.
+            every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(
+                TestSupport.parsedFeed(
+                    episodes = listOf(
+                        TestSupport.parsedEpisode(guid = "ep-1"),
+                        TestSupport.parsedEpisode(guid = "ep-2", title = "Second"),
+                    ),
+                ),
+            )
+            repo.refreshFeed(feedUrl)
+            advanceUntilIdle()
+
+            // The worker's own refresh finds nothing new to insert, and still
+            // owes the user an announcement for ep-2.
+            repo.refreshSubscriptions()
+            advanceUntilIdle()
+            val pending = repo.pendingNewEpisodes()
+            assertEquals(1, pending.size)
+            assertEquals("Test Show", pending.first().podcastTitle)
+            assertEquals(listOf(episodeId(feedUrl, "ep-2")), pending.first().episodes.map { it.id })
+
+            // Announced once, and only once.
+            repo.clearPendingNotifications(pending.flatMap { batch -> batch.episodes.map { it.id } })
+            advanceUntilIdle()
+            assertEquals(emptyList<NewEpisodeBatch>(), repo.pendingNewEpisodes())
+        }
+
+    /** Unsubscribing cancels the announcement rather than deferring it. */
+    @Test
+    fun `unsubscribing drops the feed's unannounced backlog`() =
+        runTest(mainDispatcher.dispatcher) {
+            build()
+            every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(
+                TestSupport.parsedFeed(
+                    episodes = listOf(TestSupport.parsedEpisode(guid = "ep-1")),
+                ),
+            )
+            repo.subscribe(feedUrl)
+            advanceUntilIdle()
+            every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(
+                TestSupport.parsedFeed(
+                    episodes = listOf(
+                        TestSupport.parsedEpisode(guid = "ep-1"),
+                        TestSupport.parsedEpisode(guid = "ep-2"),
+                    ),
+                ),
+            )
+            repo.refreshFeed(feedUrl)
+            advanceUntilIdle()
+            assertEquals(1, repo.pendingNewEpisodes().size)
+
+            repo.unsubscribe(feedUrl)
+            advanceUntilIdle()
+
+            assertEquals(emptyList<NewEpisodeBatch>(), repo.pendingNewEpisodes())
+            // Cleared for good, not merely hidden behind the subscribed filter.
+            repo.resubscribeAll(listOf(feedUrl))
+            advanceUntilIdle()
+            assertEquals(emptyList<NewEpisodeBatch>(), repo.pendingNewEpisodes())
+        }
 }

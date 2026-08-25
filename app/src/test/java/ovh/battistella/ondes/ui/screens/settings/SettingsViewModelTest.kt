@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
@@ -33,8 +34,12 @@ class SettingsViewModelTest {
     private val opmlManager = mockk<OpmlManager>(relaxed = true)
     private val backupManager = mockk<BackupManager>(relaxed = true)
 
-    private fun build(settings: OndesSettings = OndesSettings()): SettingsViewModel {
+    private fun build(
+        settings: OndesSettings = OndesSettings(),
+        lastRefreshAt: Long = 0L,
+    ): SettingsViewModel {
         every { settingsRepository.settings } returns flowOf(settings)
+        every { settingsRepository.lastRefreshAt } returns flowOf(lastRefreshAt)
         return SettingsViewModel(context, settingsRepository, opmlManager, backupManager)
     }
 
@@ -44,6 +49,14 @@ class SettingsViewModelTest {
         backgroundScope.launch { vm.settings.collect {} }
         advanceUntilIdle()
         assertFalse(vm.settings.value.autoAdvance)
+    }
+
+    @Test
+    fun `the last successful refresh is surfaced to the UI`() = runTest(mainDispatcher.dispatcher) {
+        val vm = build(lastRefreshAt = 1_700_000_000_000L)
+        backgroundScope.launch { vm.lastRefreshAt.collect {} }
+        advanceUntilIdle()
+        assertEquals(1_700_000_000_000L, vm.lastRefreshAt.value)
     }
 
     @Test

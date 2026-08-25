@@ -35,6 +35,10 @@ class SettingsViewModel @Inject constructor(
     val settings: StateFlow<OndesSettings> = settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), OndesSettings())
 
+    /** When the background refresh last completed; 0 until it ever has. */
+    val lastRefreshAt: StateFlow<Long> = settingsRepository.lastRefreshAt
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
     /** One-shot user feedback (e.g. "Imported 12 subscriptions"), shown as a toast. */
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages.asSharedFlow()

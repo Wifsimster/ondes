@@ -141,6 +141,10 @@
     <string name="new_episode_notifs_subtitle">Avisarme cuando mis suscripciones publiquen nuevos episodios</string>
     <string name="notifs_blocked_title">Las notificaciones están desactivadas</string>
     <string name="notifs_blocked_subtitle">Android bloquea las notificaciones de Ondes. Toca para permitirlas.</string>
+    <string name="last_checked_title">Última comprobación</string>
+    <string name="last_checked_never">Nunca</string>
+    <string name="battery_limited_title">La optimización de batería está activada</string>
+    <string name="battery_limited_subtitle">Android puede impedir que Ondes busque nuevos episodios con la aplicación cerrada. Toca para permitir la actividad en segundo plano.</string>
     <string name="settings_appearance">Apariencia</string>
     <string name="theme">Tema</string>
     <string name="dynamic_color_title">Color dinámico</string>

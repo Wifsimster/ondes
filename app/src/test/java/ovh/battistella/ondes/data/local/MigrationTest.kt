@@ -3,11 +3,13 @@ package ovh.battistella.ondes.data.local
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
+import androidx.room.migration.Migration
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -24,7 +26,7 @@ import java.util.concurrent.Executor
  * The app no longer falls back to destroying the database when a migration is
  * missing or wrong (issue P1-10), so a schema change that ships without one has
  * to fail here rather than at a user's next launch. The old database is built
- * from the schema JSON Room exported for version 5 — checked in under
+ * from the schema JSON Room exported for the version it starts at — checked in under
  * `app/schemas` and put on the test classpath — so it is the schema that
  * actually shipped, not a hand-written approximation. Opening the result with
  * Room then validates the migrated schema against the current entities: Room
@@ -44,7 +46,7 @@ class MigrationTest {
 
     @Test
     fun `migrating from 5 re-keys episodes on their feed and keeps user state`() = runBlocking {
-        createV5Database {
+        createDatabaseAt(version = 5) {
             execSQL(
                 """
                 INSERT INTO podcasts (feedUrl, title, author, description, imageUrl, link,
@@ -64,7 +66,7 @@ class MigrationTest {
             execSQL("INSERT INTO queue (episodeId, sortIndex) VALUES ('1', 1000)")
         }
 
-        val db = openMigratedDatabase()
+        val db = openMigratedDatabase(AppModule.MIGRATION_5_6, AppModule.MIGRATION_6_7)
 
         // The episode is re-keyed to feedUrl::guid, and everything the *user*
         // owns — resume position, downloaded file — comes with it.
@@ -93,7 +95,7 @@ class MigrationTest {
      */
     @Test
     fun `after migrating two feeds can each keep their episode 1`() = runBlocking {
-        createV5Database {
+        createDatabaseAt(version = 5) {
             execSQL(
                 """
                 INSERT INTO podcasts (feedUrl, title, author, description, imageUrl, link,
@@ -112,7 +114,7 @@ class MigrationTest {
             )
         }
 
-        val db = openMigratedDatabase()
+        val db = openMigratedDatabase(AppModule.MIGRATION_5_6, AppModule.MIGRATION_6_7)
         db.episodeDao().insertNew(
             listOf(
                 EpisodeEntity(
@@ -133,14 +135,46 @@ class MigrationTest {
     }
 
     /**
-     * Build a database at schema version 5 from the JSON Room exported for that
-     * version, then let [populate] insert fixture rows into it.
+     * The back catalogue that was already on the device when v7 landed must stay
+     * unannounced: flagging it would turn the first refresh after the update into
+     * a notification for every episode the user already has.
      */
-    private fun createV5Database(populate: SQLiteDatabase.() -> Unit) {
+    @Test
+    fun `migrating from 6 leaves the existing episodes unannounced`() = runBlocking {
+        createDatabaseAt(version = 6) {
+            execSQL(
+                """
+                INSERT INTO podcasts (feedUrl, title, author, description, imageUrl, link,
+                    subscribed, lastUpdated, overrideSpeed, autoDownload, etag, lastModified)
+                VALUES ('$FEED_A', 'A', 'a', '', '', '', 1, 10, NULL, 0, NULL, NULL)
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                INSERT INTO episodes (id, feedUrl, title, description, audioUrl, imageUrl,
+                    pubDate, durationMs, positionMs, isPlayed, isFinished, downloadState,
+                    localFilePath, downloadProgress, chaptersUrl, lastPlayedAt)
+                VALUES ('$FEED_A::1', '$FEED_A', 'A1', '', 'https://a.example/1.mp3', '',
+                    100, 0, 0, 0, 0, 'NONE', NULL, 0, NULL, 0)
+                """.trimIndent()
+            )
+        }
+
+        val db = openMigratedDatabase(AppModule.MIGRATION_6_7)
+
+        assertFalse(db.episodeDao().getEpisode(episodeId(FEED_A, "1"))!!.pendingNotification)
+        assertEquals(emptyList<EpisodeEntity>(), db.episodeDao().getPendingNotification())
+    }
+
+    /**
+     * Build a database at schema [version] from the JSON Room exported for it,
+     * then let [populate] insert fixture rows into it.
+     */
+    private fun createDatabaseAt(version: Int, populate: SQLiteDatabase.() -> Unit) {
         val file: File = context.getDatabasePath(DB_NAME)
         file.parentFile?.mkdirs()
         file.delete()
-        val schema = JSONObject(readSchema(version = 5)).getJSONObject("database")
+        val schema = JSONObject(readSchema(version)).getJSONObject("database")
         SQLiteDatabase.openOrCreateDatabase(file, null).use { db ->
             val entities = schema.getJSONArray("entities")
             for (i in 0 until entities.length()) {
@@ -161,10 +195,10 @@ class MigrationTest {
      * Open the database with Room, which runs the migration and then validates
      * the result against the current entities.
      */
-    private fun openMigratedDatabase(): OndesDatabase {
+    private fun openMigratedDatabase(vararg migrations: Migration): OndesDatabase {
         val directExecutor = Executor { it.run() }
         return Room.databaseBuilder(context, OndesDatabase::class.java, DB_NAME)
-            .addMigrations(AppModule.MIGRATION_5_6)
+            .addMigrations(*migrations)
             .allowMainThreadQueries()
             .setQueryExecutor(directExecutor)
             .setTransactionExecutor(directExecutor)
