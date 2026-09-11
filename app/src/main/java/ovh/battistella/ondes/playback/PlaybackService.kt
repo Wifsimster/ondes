@@ -250,7 +250,13 @@ class PlaybackService : MediaLibraryService() {
                     Intent.FLAG_ACTIVITY_SINGLE_TOP,
             )
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        return PendingIntent.getActivity(this, 0, intent, flags)
+        // A request code of its own: PendingIntents are identified by creator,
+        // request code and Intent.filterEquals() — which ignores extras — so the
+        // default 0 would let any other `getActivity(this, 0, …MainActivity…)`
+        // in the app or in a bundled library overwrite this one under
+        // FLAG_UPDATE_CURRENT. Same reasoning as NewEpisodeNotifier's per-feed
+        // codes, and outside the ranges the notification ids use.
+        return PendingIntent.getActivity(this, SESSION_ACTIVITY_REQUEST_CODE, intent, flags)
     }
 
     /** Apply the user's skip-silence and volume-boost preferences to the player. */
@@ -511,5 +517,8 @@ class PlaybackService : MediaLibraryService() {
 
         /** Volume-boost gain in millibels (~10 dB) when "Boost volume" is on. */
         private const val BOOST_GAIN_MB = 1_000
+
+        /** Request code of the "open Ondes" PendingIntent; see [openAppIntent]. */
+        private const val SESSION_ACTIVITY_REQUEST_CODE = 3_001
     }
 }
