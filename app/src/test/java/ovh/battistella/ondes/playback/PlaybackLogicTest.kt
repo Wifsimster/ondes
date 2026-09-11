@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ovh.battistella.ondes.data.local.EpisodeEntity
 
 /**
  * Pins the resume / sleep-timer decision rules that Media3 can't express
@@ -29,6 +30,59 @@ class PlaybackLogicTest {
     fun finishedEpisodeStartsFromBeginning() {
         // A replay of a finished episode should not jump back to where it ended.
         assertNull(PlaybackTransitions.resumeTargetMs(120_000L, isFinished = true))
+    }
+
+    // --- PlaybackTransitions.followOn -----------------------------------
+
+    private fun episode(n: Int, played: Boolean = false, finished: Boolean = false) = EpisodeEntity(
+        id = "ep$n",
+        feedUrl = "feed",
+        title = "Episode $n",
+        description = "",
+        audioUrl = "https://example.com/$n.mp3",
+        imageUrl = "",
+        pubDate = n * 1_000L,
+        durationMs = 0,
+        isPlayed = played,
+        isFinished = finished,
+    )
+
+    /** Episode lists are newest-first, as every DAO query orders them. */
+    private fun newestFirst(vararg episodes: EpisodeEntity) = episodes.sortedByDescending { it.pubDate }
+
+    @Test
+    fun followOnContinuesIntoNewerEpisodesOldestFirst() {
+        // Tapping ep2 in [ep5, ep4, ep3, ep2, ep1] must flow into ep3 → ep4 → ep5,
+        // never back into ep1 (the old behaviour: "next" played the previous one).
+        val list = newestFirst(episode(1), episode(2), episode(3), episode(4), episode(5))
+        assertEquals(
+            listOf("ep3", "ep4", "ep5"),
+            PlaybackTransitions.followOn(episode(2), list).map { it.id },
+        )
+    }
+
+    @Test
+    fun followOnSkipsAlreadyListenedEpisodes() {
+        val list = newestFirst(
+            episode(1),
+            episode(2),
+            episode(3, played = true),
+            episode(4, finished = true),
+            episode(5),
+        )
+        assertEquals(listOf("ep5"), PlaybackTransitions.followOn(episode(2), list).map { it.id })
+    }
+
+    @Test
+    fun followOnFromNewestEpisodeIsEmpty() {
+        val list = newestFirst(episode(1), episode(2), episode(3))
+        assertTrue(PlaybackTransitions.followOn(episode(3), list).isEmpty())
+    }
+
+    @Test
+    fun followOnForEpisodeMissingFromListIsEmpty() {
+        val list = newestFirst(episode(1), episode(2))
+        assertTrue(PlaybackTransitions.followOn(episode(9), list).isEmpty())
     }
 
     // --- SleepTimerLogic.endThresholdMs ---------------------------------
