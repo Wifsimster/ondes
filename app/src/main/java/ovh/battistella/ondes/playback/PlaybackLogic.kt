@@ -1,5 +1,7 @@
 package ovh.battistella.ondes.playback
 
+import ovh.battistella.ondes.data.local.EpisodeEntity
+
 /**
  * Pure, Android-free decision rules for playback position handling. Kept
  * separate from the service/connection so the tricky resume-and-persist logic
@@ -18,6 +20,25 @@ object PlaybackTransitions {
      */
     fun resumeTargetMs(savedPositionMs: Long, isFinished: Boolean): Long? =
         if (savedPositionMs > 0 && !isFinished) savedPositionMs else null
+
+    /**
+     * The episodes auto-advance should flow into once [episode] ends, in play
+     * order, given the newest-first [list] it was tapped in.
+     *
+     * Every episode list in the app is sorted newest-first, so the rows *after*
+     * the tapped one are older — queueing those (as this used to) walked
+     * backwards in time, playing the previous episode when the current one
+     * ended. Auto-advance now continues forward through the newer episodes,
+     * oldest first, and skips anything already listened to. An [episode] that
+     * isn't in [list] has nothing to flow into.
+     */
+    fun followOn(episode: EpisodeEntity, list: List<EpisodeEntity>): List<EpisodeEntity> {
+        val index = list.indexOfFirst { it.id == episode.id }
+        if (index < 0) return emptyList()
+        return list.subList(0, index)
+            .asReversed()
+            .filter { !it.isPlayed && !it.isFinished }
+    }
 }
 
 /**

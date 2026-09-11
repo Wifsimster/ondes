@@ -202,8 +202,9 @@ class PlaybackConnection @Inject constructor(
 
     /**
      * Play [episode], resuming from its saved position. When auto-advance is on
-     * and a [queue] is supplied, the episodes after it are loaded too so
-     * playback flows continuously into the next one.
+     * and a (newest-first) [queue] is supplied, the unplayed episodes newer than
+     * it are loaded too so playback flows continuously into the next one — see
+     * [PlaybackTransitions.followOn].
      *
      * Resolving the items touches the filesystem (does this episode have a
      * downloaded file?) once per episode, so it happens off the main thread —
@@ -218,8 +219,7 @@ class PlaybackConnection @Inject constructor(
             return
         }
         val followOn = if (settings.autoAdvance && queue.isNotEmpty()) {
-            // Episodes strictly after the requested one, so playback flows on.
-            queue.dropWhile { it.id != episode.id }.drop(1)
+            PlaybackTransitions.followOn(episode, queue)
         } else {
             emptyList()
         }
