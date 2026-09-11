@@ -77,6 +77,7 @@ import ovh.battistella.ondes.playback.PlayerUiState
 import ovh.battistella.ondes.ui.components.HtmlText
 import ovh.battistella.ondes.ui.components.PlayPauseIcon
 import ovh.battistella.ondes.ui.components.PodcastArtwork
+import ovh.battistella.ondes.ui.components.WavySliderTrack
 import ovh.battistella.ondes.ui.components.formatTime
 import ovh.battistella.ondes.ui.theme.OndesTheme
 
@@ -263,6 +264,15 @@ private fun PlayerControls(
             },
             valueRange = 0f..maxValue,
             enabled = duration > 0,
+            // The played portion ripples while playing and flattens on pause —
+            // the "ondes" of the name, doubling as a playback-state cue.
+            track = { sliderState ->
+                WavySliderTrack(
+                    sliderState = sliderState,
+                    playing = state.isPlaying && !scrubbing,
+                    enabled = duration > 0,
+                )
+            },
             modifier = Modifier.semantics {
                 contentDescription = positionLabel
                 stateDescription = positionState
