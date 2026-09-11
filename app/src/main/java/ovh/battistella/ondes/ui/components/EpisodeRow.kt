@@ -1,6 +1,7 @@
 package ovh.battistella.ondes.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,13 +14,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.PauseCircle
+import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.PlaylistPlay
-import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.RemoveDone
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -36,6 +37,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -116,22 +119,50 @@ fun EpisodeRow(
             verticalAlignment = Alignment.Top,
         ) {
         if (showArtwork) {
-            PodcastArtwork(
-                url = episode.imageUrl,
-                modifier = Modifier.size(56.dp),
-                shape = OndesTheme.shapes.artworkSmall,
-            )
+            Box(contentAlignment = Alignment.Center) {
+                PodcastArtwork(
+                    url = episode.imageUrl,
+                    modifier = Modifier.size(56.dp),
+                    shape = OndesTheme.shapes.artworkSmall,
+                )
+                // The loaded episode wears the animated brand mark over its
+                // artwork — the same five bars as the launcher icon.
+                if (isCurrent) {
+                    Box(
+                        Modifier
+                            .size(56.dp)
+                            .clip(OndesTheme.shapes.artworkSmall)
+                            .background(Color.Black.copy(alpha = 0.45f)),
+                    )
+                    PlayingEqualizer(
+                        playing = isPlaying,
+                        color = Color.White,
+                        modifier = Modifier.size(36.dp),
+                    )
+                }
+            }
             Spacer(Modifier.width(OndesTheme.spacing.md))
         }
         Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
-            Text(
-                text = episode.title,
-                style = MaterialTheme.typography.titleSmall,
-                color = if (isCurrent) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Without artwork (podcast page) the mark sits inline instead.
+                if (isCurrent && !showArtwork) {
+                    PlayingEqualizer(
+                        playing = isPlaying,
+                        color = OndesTheme.colors.brand,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(OndesTheme.spacing.sm))
+                }
+                Text(
+                    text = episode.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (isCurrent) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Spacer(Modifier.height(4.dp))
             val inProgress = episode.positionMs > 0 && !episode.isFinished && episode.durationMs > 0
             val timeLeft = if (inProgress) {
