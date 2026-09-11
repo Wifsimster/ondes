@@ -39,6 +39,16 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <!-- Marks this activity as *the* media app to open. Several
+                     surfaces that show playback outside the app - the lock
+                     screen, OEM "island" / floating media capsules, car head
+                     units, the assistant - resolve "open the player" with
+                     ACTION_MAIN + CATEGORY_APP_MUSIC rather than through the
+                     session activity. Without the category Ondes is not a
+                     candidate at all and the system silently falls back to
+                     whatever music app the user has, so the capsule for an
+                     Ondes episode could open a different player entirely. -->
+                <category android:name="android.intent.category.APP_MUSIC" />
             </intent-filter>
         </activity>
 
@@ -52,6 +62,24 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+
+        <!-- Keeps Ondes as the owner of the media buttons once its session is
+             gone. Media3 only registers a *runtime* receiver when the manifest
+             declares none, and that receiver dies with the process: from API 31
+             on, the platform session is then left without a media-button
+             broadcast receiver, so a play/open from a headset, a car, the lock
+             screen or a resumption capsule after the process was killed is
+             routed to whichever other media app still declares one. Declaring
+             the receiver also makes the MediaLibrarySession.Callback's
+             onPlaybackResumption reachable after process death, which is what
+             it was written for. -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
 
         <!-- WorkManager runs expedited episode downloads as a foreground service on
              older API levels; declare the data-sync type it posts with. -->
