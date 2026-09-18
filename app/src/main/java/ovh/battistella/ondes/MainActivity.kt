@@ -7,13 +7,13 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,8 +22,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ovh.battistella.ondes.data.settings.ThemeMode
 import ovh.battistella.ondes.sync.NewEpisodeNotifier
+import ovh.battistella.ondes.ui.enableEdgeToEdgeCompat
 import ovh.battistella.ondes.ui.navigation.OndesRoot
 import ovh.battistella.ondes.ui.screens.onboarding.OnboardingScreen
+import ovh.battistella.ondes.ui.setSystemBarsAppearance
 import ovh.battistella.ondes.ui.theme.OndesTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -40,7 +42,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdgeCompat()
         maybeRequestNotificationPermission()
         pendingFeedUrl = intent?.getStringExtra(NewEpisodeNotifier.EXTRA_OPEN_FEED_URL)
         // Consume the extra so a config-change recreation (rotation) doesn't
@@ -53,6 +55,7 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
+            LaunchedEffect(darkTheme) { window.setSystemBarsAppearance(darkTheme) }
             val showOnboarding by mainViewModel.showOnboarding.collectAsStateWithLifecycle()
             OndesTheme(darkTheme = darkTheme, dynamicColor = settings.dynamicColor) {
                 Surface(
