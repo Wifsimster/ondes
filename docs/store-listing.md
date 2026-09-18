@@ -120,6 +120,150 @@ vous abonnez et n'est affilié à aucun podcast ni éditeur.
 
 ---
 
+## Deutsch (de-DE)
+
+**App name**
+```
+Ondes — Podcast-Player
+```
+
+**Short description** (≤80)
+```
+Podcasts ohne Werbung, Tracker und Konto. Downloads, Android Auto, 3× Tempo.
+```
+
+**Full description** (≤4000)
+```
+Die meisten Podcast-Apps machen dich zum Produkt: Werbung zwischen den Folgen, Tracker, die jeden Tipp protokollieren, ein Konto, bevor du überhaupt auf Play drücken kannst. Ondes macht nichts davon.
+
+0 Werbung. 0 Tracker. 0 Konto. Alle Abos, Downloads, Positionen und Einstellungen bleiben auf deinem Telefon – nichts wird irgendwohin gesendet.
+
+Einmal zahlen – Ondes gehört dir für immer. Kein Abo, keine Werbung, keine Zusatzkäufe. Ein Preis, alle Funktionen, lebenslang.
+
+Suche eine Sendung oder füge einen beliebigen RSS-Feed ein und höre, wie du willst: vollständige Hintergrundwiedergabe mit Steuerung auf dem Sperrbildschirm und in der Benachrichtigung, 0,8×–3× Geschwindigkeit, Stille überspringen und Lautstärkeverstärkung für klarere Stimmen bei Straßen- oder Zuglärm. Eine 60-Minuten-Folge in 40 Minuten.
+
+FUNKTIONEN
+• Hintergrundwiedergabe mit Steuerung auf Sperrbildschirm & in Benachrichtigungen
+• Android Auto – freihändig stöbern und abspielen im Auto
+• Variable Geschwindigkeit (0,8×–3×), einstellbar pro Podcast
+• Stille überspringen & Lautstärkeverstärkung
+• Einstellbare Sprungintervalle und automatische Wiedergabe der nächsten Folge
+• Kapitel und formatierte Shownotes mit anklickbaren Zeitmarken
+• Sleeptimer – feste Dauer oder Stopp am Ende der Folge
+• Offline-Downloads, optional nur über WLAN und automatisches Löschen nach dem Hören
+• Aktualisierung im Hintergrund und Benachrichtigungen bei neuen Folgen
+• Weiterhören, wo du aufgehört hast, mit dauerhafter Warteschlange
+• Podcasts entdecken oder jeden RSS-Feed selbst hinzufügen
+• Abo-Bibliothek mit Ziehen-zum-Aktualisieren und Filter pro Sendung
+• Deine Daten gehören dir: OPML-Import/-Export und vollständige lokale Sicherung
+• Material-You-Farben, hell/dunkel/System, randlose Darstellung
+• In 5 Sprachen: Deutsch, Englisch, Französisch, Spanisch, Portugiesisch
+• Barrierefreiheit: volle TalkBack-Unterstützung mit eigenen Aktionen
+
+PRIVAT VON GRUND AUF
+Keine Werbung. Keine Analysen. Kein Login. Alles – Abos, Fortschritt, Downloads und Einstellungen – bleibt auf deinem Gerät.
+
+Ondes ist ein unabhängiger Player. Er streamt die öffentlich veröffentlichten RSS-Feeds, die du abonnierst, und steht mit keinem Podcast oder Verlag in Verbindung.
+```
+
+---
+
+## Español (es-ES)
+
+**App name**
+```
+Ondes — Reproductor de podcast
+```
+
+**Short description** (≤80)
+```
+Podcasts sin anuncios, sin rastreadores, sin cuenta. Descargas, Android Auto.
+```
+
+**Full description** (≤4000)
+```
+La mayoría de las apps de podcasts te convierten en el producto: anuncios entre episodios, rastreadores que registran cada toque, una cuenta antes de poder pulsar reproducir. Ondes no hace nada de eso.
+
+0 anuncios. 0 rastreadores. 0 cuentas. Todas tus suscripciones, descargas, posiciones y ajustes se quedan en tu teléfono: no se envía nada a ningún sitio.
+
+Paga una vez y Ondes es tuyo para siempre. Sin suscripción, sin anuncios, sin extras de pago. Un solo precio, todas las funciones, de por vida.
+
+Busca un programa o pega cualquier feed RSS y escucha a tu manera: reproducción en segundo plano completa con controles en la pantalla de bloqueo y en la notificación, velocidad de 0,8× a 3×, saltar silencios y refuerzo de volumen para voces más claras con el ruido de la carretera o del tren. Termina un programa de 60 minutos en 40.
+
+FUNCIONES
+• Reproducción en segundo plano con controles en pantalla de bloqueo y notificaciones
+• Android Auto: navega y reproduce sin manos en el coche
+• Velocidad variable (0,8×–3×), con ajuste por podcast
+• Saltar silencios y refuerzo de volumen
+• Intervalos de salto configurables y reproducción automática del siguiente episodio
+• Capítulos y notas del programa con marcas de tiempo pulsables
+• Temporizador de sueño: duraciones fijas o parar al final del episodio
+• Descargas sin conexión, con opción solo Wi-Fi y borrado automático al terminar
+• Actualización en segundo plano y notificaciones de nuevos episodios
+• Retoma donde lo dejaste, con una cola «A continuación» persistente
+• Descubre podcasts o añade tú mismo cualquier feed RSS
+• Biblioteca de suscripciones con deslizar para actualizar y filtros por programa
+• Tus datos son tuyos: importación/exportación OPML y copia de seguridad local completa
+• Colores dinámicos Material You, claro/oscuro/sistema, de borde a borde
+• Traducida a 5 idiomas: español, inglés, francés, alemán, portugués
+• Accesibilidad: compatibilidad total con TalkBack y acciones personalizadas
+
+PRIVADA POR DISEÑO
+Sin anuncios. Sin analíticas. Sin inicio de sesión. Todo —suscripciones, progreso, descargas y ajustes— se queda en tu dispositivo.
+
+Ondes es un reproductor independiente. Reproduce los feeds RSS públicos a los que te suscribes y no está afiliado a ningún podcast ni editor.
+```
+
+---
+
+## Português (Brasil) (pt-BR)
+
+**App name**
+```
+Ondes — Player de podcasts
+```
+
+**Short description** (≤80)
+```
+Podcasts sem anúncios, sem rastreadores, sem conta. Downloads, Android Auto.
+```
+
+**Full description** (≤4000)
+```
+A maioria dos apps de podcast faz de você o produto: anúncios entre os episódios, rastreadores registrando cada toque, uma conta antes mesmo de apertar o play. O Ondes não faz nada disso.
+
+0 anúncios. 0 rastreadores. 0 conta. Suas assinaturas, downloads, posições e configurações ficam no seu celular — nada é enviado a lugar nenhum.
+
+Pague uma vez e o Ondes é seu para sempre. Sem assinatura, sem anúncios, sem extras pagos. Um preço, todos os recursos, para a vida toda.
+
+Busque um programa ou cole qualquer feed RSS e ouça do seu jeito: reprodução em segundo plano completa com controles na tela de bloqueio e na notificação, velocidade de 0,8× a 3×, pular silêncios e reforço de volume para vozes mais claras no barulho da estrada ou do trem. Termine um programa de 60 minutos em 40.
+
+RECURSOS
+• Reprodução em segundo plano com controles na tela de bloqueio e nas notificações
+• Android Auto — navegue e ouça sem usar as mãos no carro
+• Velocidade variável (0,8×–3×), com ajuste por podcast
+• Pular silêncios e reforço de volume
+• Intervalos de avanço configuráveis e reprodução automática do próximo episódio
+• Capítulos e notas do programa com marcações de tempo clicáveis
+• Timer de sono — durações fixas ou parar ao fim do episódio
+• Downloads offline, com opção somente Wi-Fi e exclusão automática ao terminar
+• Atualização em segundo plano e notificações de novos episódios
+• Retome de onde parou, com uma fila «A seguir» persistente
+• Descubra podcasts ou adicione você mesmo qualquer feed RSS
+• Biblioteca de assinaturas com puxar para atualizar e filtros por programa
+• Seus dados são seus: importação/exportação OPML e backup local completo
+• Cores dinâmicas Material You, claro/escuro/sistema, tela de ponta a ponta
+• Traduzido em 5 idiomas: português, inglês, francês, alemão, espanhol
+• Acessibilidade: suporte completo ao TalkBack com ações personalizadas
+
+PRIVADO POR PRINCÍPIO
+Sem anúncios. Sem análises. Sem login. Tudo — assinaturas, progresso, downloads e configurações — fica no seu aparelho.
+
+O Ondes é um player independente. Ele reproduz os feeds RSS públicos que você assina e não tem vínculo com nenhum podcast ou editora.
+```
+
+---
+
 ## Other listing fields
 
 | Field | Value |
