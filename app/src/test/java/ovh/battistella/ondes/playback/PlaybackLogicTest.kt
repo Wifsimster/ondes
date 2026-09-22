@@ -133,4 +133,22 @@ class PlaybackLogicTest {
     fun unknownDurationIsNeverNearEnd() {
         assertFalse(SleepTimerLogic.isNearEnd(positionMs = 5_000, durationMs = 0, speed = 1f))
     }
+
+    // --- SleepTimerLogic.wasAutoAdvance ---------------------------------
+
+    @Test
+    fun switchingAwayNearTheEndIsAnAutoAdvance() {
+        assertTrue(SleepTimerLogic.wasAutoAdvance(lastPositionMs = 3_595_000, lastDurationMs = 3_600_000))
+    }
+
+    @Test
+    fun switchingAwayMidEpisodeIsTheUsersChoice() {
+        // The user tapped another episode: the timer must not pause it.
+        assertFalse(SleepTimerLogic.wasAutoAdvance(lastPositionMs = 600_000, lastDurationMs = 3_600_000))
+    }
+
+    @Test
+    fun unknownDurationIsNeverAnAutoAdvance() {
+        assertFalse(SleepTimerLogic.wasAutoAdvance(lastPositionMs = 0, lastDurationMs = 0))
+    }
 }

@@ -257,4 +257,31 @@ class PodcastRepositoryTest {
             advanceUntilIdle()
             assertEquals(emptyList<NewEpisodeBatch>(), repo.pendingNewEpisodes())
         }
+
+    /**
+     * Opening a search result shows the podcast screen, whose init refresh is a
+     * plain refreshFeed. That preview used to subscribe the user on the spot.
+     */
+    @Test
+    fun `refreshing a never-seen feed previews it without subscribing`() =
+        runTest(mainDispatcher.dispatcher) {
+            build()
+            every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(
+                TestSupport.parsedFeed(
+                    episodes = listOf(TestSupport.parsedEpisode(guid = "ep-1")),
+                ),
+            )
+
+            repo.refreshFeed(feedUrl)
+            advanceUntilIdle()
+
+            assertEquals(false, repo.getPodcastOnce(feedUrl)?.subscribed)
+            assertEquals(emptySet<String>(), repo.getSubscribedFeedUrlsOnce())
+
+            // Subscribing afterwards still works and keeps the previewed episodes.
+            repo.subscribe(feedUrl)
+            advanceUntilIdle()
+            assertEquals(setOf(feedUrl), repo.getSubscribedFeedUrlsOnce())
+            assertEquals(1, repo.getEpisodesOnce(feedUrl).size)
+        }
 }

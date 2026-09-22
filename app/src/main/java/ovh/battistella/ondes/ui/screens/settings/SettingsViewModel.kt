@@ -89,6 +89,10 @@ class SettingsViewModel @Inject constructor(
         context.contentResolver.openInputStream(uri)?.use { input ->
             backupManager.import(input)
         } ?: error("no stream")
+        // The restore may have flipped backgroundRefresh; the periodic job is
+        // otherwise only (re)scheduled from the toggle and at app start, so it
+        // would keep running (or stay off) against the switch until a restart.
+        FeedRefreshScheduler.apply(context, settingsRepository.snapshot().backgroundRefresh)
         context.getString(R.string.restore_done)
     }
 

@@ -3,8 +3,9 @@ package ovh.battistella.ondes.common
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,13 +34,16 @@ class SnackbarController @Inject constructor() {
         val isUndo: Boolean = false,
     )
 
-    // A buffer so emissions from non-suspending callers (tryEmit) aren't dropped
-    // when a few land back-to-back before the collector resumes.
-    private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 16)
-    val messages = _messages.asSharedFlow()
+    // A buffered channel rather than a SharedFlow: a SharedFlow with no
+    // subscriber drops every emission, so a message sent while the root host
+    // isn't composed yet (e.g. the onboarding "added X of Y" result, posted just
+    // before the app switches from onboarding to the root) was silently lost.
+    // The channel holds it until the single root collector picks it up.
+    private val _messages = Channel<Message>(capacity = 16)
+    val messages: Flow<Message> = _messages.receiveAsFlow()
 
     fun show(text: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
-        _messages.tryEmit(Message(text, actionLabel, onAction))
+        _messages.trySend(Message(text, actionLabel, onAction))
     }
 
     /**
@@ -47,7 +51,7 @@ class SnackbarController @Inject constructor() {
      * coroutine, so it survives the originating screen being navigated away from.
      */
     fun showUndo(text: String, actionLabel: String, action: suspend () -> Unit) {
-        _messages.tryEmit(
+        _messages.trySend(
             Message(
                 text = text,
                 actionLabel = actionLabel,

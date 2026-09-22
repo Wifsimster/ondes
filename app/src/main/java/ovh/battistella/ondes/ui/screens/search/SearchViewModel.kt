@@ -80,11 +80,14 @@ class SearchViewModel @Inject constructor(
         searchJob?.cancel()
         // Clearing the field returns to the Browse-by-theme landing rather than
         // leaving stale results (or an error) on screen.
+        // The cancelled search may have been mid-flight with `loading` set; it
+        // will never reach the line that clears it, so clear it here or the
+        // spinner outlives it (and hides the Discover landing on a cleared field).
         if (query.isEmpty()) {
-            _state.value = _state.value.copy(query = "", results = emptyList(), error = null)
+            _state.value = _state.value.copy(query = "", results = emptyList(), error = null, loading = false)
             return
         }
-        _state.value = _state.value.copy(query = query)
+        _state.value = _state.value.copy(query = query, loading = false)
         // Debounced as-you-type search; a raw URL waits for an explicit submit.
         if (!looksLikeUrl(query)) {
             searchJob = viewModelScope.launch {
