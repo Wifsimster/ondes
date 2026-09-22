@@ -181,7 +181,10 @@ class PodcastRepository @Inject constructor(
                 description = parsed.description,
                 imageUrl = parsed.imageUrl.ifEmpty { existing?.imageUrl.orEmpty() },
                 link = parsed.link,
-                subscribed = markSubscribed || (existing?.subscribed ?: true),
+                // A feed seen for the first time without markSubscribed is only
+                // being previewed (e.g. opened from a search result): it must not
+                // land in the library until the user actually subscribes.
+                subscribed = markSubscribed || (existing?.subscribed ?: false),
                 lastUpdated = System.currentTimeMillis(),
                 // The upsert replaces the whole row, so the user's own settings
                 // for this podcast have to be carried across explicitly.

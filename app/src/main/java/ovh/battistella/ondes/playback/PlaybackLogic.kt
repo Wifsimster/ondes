@@ -70,4 +70,20 @@ object SleepTimerLogic {
     /** Whether the episode is close enough to its end to stop now. */
     fun isNearEnd(positionMs: Long, durationMs: Long, speed: Float): Boolean =
         durationMs > 0 && positionMs >= durationMs - endThresholdMs(speed)
+
+    /**
+     * How close to its end the target must last have been seen for a change of
+     * episode to count as an auto-advance. Wider than [endThresholdMs] so a
+     * skip-silence jump over the stop window still counts; anything earlier is
+     * the user choosing another episode.
+     */
+    const val AUTO_ADVANCE_WINDOW_MS = 15_000L
+
+    /**
+     * Whether the current episode changing away from the target, last seen at
+     * [lastPositionMs] of [lastDurationMs], was the player running off its end
+     * rather than the user starting, skipping to or stopping on something else.
+     */
+    fun wasAutoAdvance(lastPositionMs: Long, lastDurationMs: Long): Boolean =
+        lastDurationMs > 0 && lastPositionMs >= lastDurationMs - AUTO_ADVANCE_WINDOW_MS
 }

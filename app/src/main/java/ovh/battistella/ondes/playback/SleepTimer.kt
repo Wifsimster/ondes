@@ -47,14 +47,21 @@ class SleepTimer @Inject constructor(
         cancel()
         val targetId = playbackConnection.state.value.currentEpisodeId ?: return
         _endOfEpisodeArmed.value = true
+        var lastPositionMs = 0L
+        var lastDurationMs = 0L
         job = scope.launch {
             playbackConnection.state.collect { state ->
                 val current = state.currentEpisodeId
                 when {
                     // Already auto-advanced past the target: the service marked it
                     // finished on the transition, so just stop the next episode.
+                    // A switch well before the end is the user picking another
+                    // episode (or stopping): that disarms the timer, it must not
+                    // pause what they just asked to play.
                     current != targetId -> {
-                        playbackConnection.pause()
+                        if (SleepTimerLogic.wasAutoAdvance(lastPositionMs, lastDurationMs)) {
+                            playbackConnection.pause()
+                        }
                         cancel()
                     }
                     // About to hit the end. Stopping here is a beat early, so mark
@@ -65,6 +72,10 @@ class SleepTimer @Inject constructor(
                         playbackConnection.finishCurrentEpisode()
                         playbackConnection.pause()
                         cancel()
+                    }
+                    else -> {
+                        lastPositionMs = state.positionMs
+                        lastDurationMs = state.durationMs
                     }
                 }
             }

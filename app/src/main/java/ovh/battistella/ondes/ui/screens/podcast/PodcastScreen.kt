@@ -281,9 +281,12 @@ fun PodcastScreen(
             // Reaching the end of the loaded page asks for the next one, so a
             // long back catalogue streams in as the user scrolls rather than
             // being read and diffed in full up front (opt. 7).
-            if (query.isBlank() && filteredEpisodes.size < episodeCount) {
+            // Keyed on the *unfiltered* page: with "unplayed only" on, the filtered
+            // list is shorter than the feed forever (the spinner never went away)
+            // and could stay the same size across a page (paging stalled).
+            if (query.isBlank() && episodes.size < episodeCount) {
                 item(key = "load-more") {
-                    LaunchedEffect(filteredEpisodes.size) { viewModel.loadMore() }
+                    LaunchedEffect(episodes.size) { viewModel.loadMore() }
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(OndesTheme.spacing.lg),
                         contentAlignment = Alignment.Center,

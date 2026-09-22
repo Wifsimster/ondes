@@ -32,6 +32,17 @@ class RssDatesTest {
     }
 
     @Test
+    fun `rfc822 with a wrong weekday still parses`() {
+        // 1 Jan 2021 was a Friday; feeds that get the day name wrong are common.
+        assertEquals(epochUtc, RssDates.parse("Mon, 01 Jan 2021 00:00:00 +0000"))
+    }
+
+    @Test
+    fun `rfc822 without a weekday parses`() {
+        assertEquals(epochUtc, RssDates.parse("01 Jan 2021 00:00:00 GMT"))
+    }
+
+    @Test
     fun `iso8601 with Z offset token`() {
         assertEquals(epochUtc, RssDates.parse("2021-01-01T00:00:00Z"))
     }

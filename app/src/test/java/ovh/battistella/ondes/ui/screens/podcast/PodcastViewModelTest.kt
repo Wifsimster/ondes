@@ -44,9 +44,11 @@ class PodcastViewModelTest {
     private lateinit var repo: PodcastRepository
     private lateinit var connection: PlaybackConnection
 
-    private fun build(): PodcastViewModel {
+    private suspend fun build(subscribed: Boolean = false): PodcastViewModel {
         db = TestSupport.inMemoryDb()
         repo = TestSupport.repository(db, mainDispatcher.dispatcher, rss = rss)
+        // Opening a show never subscribes to it, so a subscribed one is seeded.
+        if (subscribed) db.podcastDao().upsert(TestSupport.podcast(feedUrl = feedUrl))
         connection = TestSupport.mockConnection(playerFlow)
         // The screen's init refreshes the feed; feed it two episodes.
         every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(TestSupport.parsedFeed(
@@ -143,8 +145,20 @@ class PodcastViewModelTest {
     }
 
     @Test
+    fun `opening a show that isn't subscribed does not subscribe to it`() =
+        runTest(mainDispatcher.dispatcher) {
+            val vm = build()
+            backgroundScope.launch { vm.podcast.collect {} }
+            advanceUntilIdle()
+
+            // The init refresh (e.g. a search result being previewed) must leave
+            // the show out of the library.
+            assertFalse(vm.podcast.value!!.subscribed)
+        }
+
+    @Test
     fun `toggleSubscribe unsubscribes a subscribed show`() = runTest(mainDispatcher.dispatcher) {
-        val vm = build()
+        val vm = build(subscribed = true)
         backgroundScope.launch { vm.podcast.collect {} }
         advanceUntilIdle()
 

@@ -254,7 +254,11 @@ class PlaybackConnection @Inject constructor(
                 }
             } ?: return@launch
             val c = controller ?: return@launch
-            c.setMediaItems(resolved, /* startIndex = */ 0, head.positionMs.coerceAtLeast(0))
+            // A finished episode can still carry its end-of-file position (the
+            // service saves the playhead as playback stops at the end), so
+            // replaying it must start fresh rather than instantly ending again.
+            val startMs = PlaybackTransitions.resumeTargetMs(head.positionMs, head.isFinished) ?: 0L
+            c.setMediaItems(resolved, /* startIndex = */ 0, startMs)
             c.playbackParameters = PlaybackParameters(settings.defaultSpeed)
             applySpeedFor(head.feedUrl)
             c.prepare()

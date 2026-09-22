@@ -116,11 +116,15 @@ class MediaLibraryTree @Inject constructor(
      * a `mediaId`. Resolve each one back to a fully-formed, playable [MediaItem]
      * with its audio URI and metadata, dropping any that have no playable source.
      */
-    suspend fun resolve(items: List<MediaItem>): List<MediaItem> {
-        val resolved = items.mapNotNull { item ->
+    suspend fun resolve(items: List<MediaItem>): List<MediaItem> =
+        resolveIndexed(items).map { it.second }
+
+    /** [resolve], keeping each playable item's index in the requested list. */
+    private suspend fun resolveIndexed(items: List<MediaItem>): List<Pair<Int, MediaItem>> {
+        val resolved = items.mapIndexedNotNull { index, item ->
             // Already complete (has a URI) — keep as-is.
-            if (item.localConfiguration != null) return@mapNotNull item
-            repository.getEpisode(item.mediaId)?.let(MediaItems::playable)
+            if (item.localConfiguration != null) return@mapIndexedNotNull index to item
+            repository.getEpisode(item.mediaId)?.let(MediaItems::playable)?.let { index to it }
         }
         Log.i(TAG, "resolve: ${items.size} requested -> ${resolved.size} playable")
         return resolved
@@ -136,13 +140,22 @@ class MediaLibraryTree @Inject constructor(
         startIndex: Int,
         startPositionMs: Long,
     ): MediaItemsWithStartPosition {
-        val resolved = resolve(items)
-        if (resolved.isEmpty()) return MediaItemsWithStartPosition(emptyList(), 0, 0L)
-        val index = (if (startIndex == C.INDEX_UNSET) 0 else startIndex).coerceIn(0, resolved.lastIndex)
-        val position = if (startPositionMs != C.TIME_UNSET) {
+        val indexed = resolveIndexed(items)
+        if (indexed.isEmpty()) return MediaItemsWithStartPosition(emptyList(), 0, 0L)
+        val resolved = indexed.map { it.second }
+        // startIndex refers to the *requested* list; unplayable items dropped
+        // before it would otherwise shift it onto a different episode. Start at
+        // the chosen item, or the first playable one after it.
+        val requested = if (startIndex == C.INDEX_UNSET) 0 else startIndex
+        val index = indexed.indexOfFirst { it.first >= requested }
+            .takeIf { it >= 0 } ?: resolved.lastIndex
+        // A pinned position only belongs to the item it was pinned for.
+        val pinnedStillValid = indexed[index].first == requested
+        val position = if (startPositionMs != C.TIME_UNSET && pinnedStillValid) {
             startPositionMs
         } else {
-            repository.getEpisode(resolved[index].mediaId)?.positionMs?.coerceAtLeast(0) ?: 0L
+            repository.getEpisode(resolved[index].mediaId)
+                ?.let { PlaybackTransitions.resumeTargetMs(it.positionMs, it.isFinished) } ?: 0L
         }
         return MediaItemsWithStartPosition(resolved, index, position)
     }

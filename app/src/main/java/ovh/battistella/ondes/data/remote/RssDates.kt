@@ -16,19 +16,28 @@ import java.util.TimeZone
  *    formats with a real offset token still honour the offset in the input.
  *  - Millisecond variants (`…ss.SSS…`) matched nothing, sinking those episodes
  *    to `pubDate = 0`; they are covered explicitly below.
+ *
+ * The RFC-822 day-of-week prefix (`Mon, `) is stripped before matching: with
+ * leniency off, a weekday that disagrees with the date made every pattern
+ * reject the string, and feeds with a wrong weekday are common enough in the
+ * wild that those episodes all sank to `pubDate = 0`. The date itself carries
+ * all the information; the weekday is redundant.
  */
 object RssDates {
 
     private val UTC: TimeZone = TimeZone.getTimeZone("UTC")
 
+    /** A leading RFC-822 day name (`Mon, `), which strict parsing would cross-check. */
+    private val WEEKDAY_PREFIX = Regex("^[A-Za-z]+,\\s*")
+
     // Ordered most-specific first. Offset tokens: `Z` (RFC-822 numeric, e.g.
     // +0000), `zzz` (named), `XX` (+0000), `XXX` (+00:00); `X` variants and the
     // literal `'Z'`/zoneless forms fall back to the formatter's UTC default.
     private val FORMATS = listOf(
-        "EEE, dd MMM yyyy HH:mm:ss Z",
-        "EEE, dd MMM yyyy HH:mm:ss zzz",
-        "EEE, dd MMM yyyy HH:mm Z",
-        "EEE, dd MMM yyyy HH:mm zzz",
+        "dd MMM yyyy HH:mm:ss Z",
+        "dd MMM yyyy HH:mm:ss zzz",
+        "dd MMM yyyy HH:mm Z",
+        "dd MMM yyyy HH:mm zzz",
         "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
         "yyyy-MM-dd'T'HH:mm:ss.SSSXX",
         "yyyy-MM-dd'T'HH:mm:ssXXX",
@@ -42,7 +51,7 @@ object RssDates {
 
     /** Epoch millis for [raw], or 0 when it is blank or matches no known format. */
     fun parse(raw: String): Long {
-        val t = raw.trim()
+        val t = raw.trim().replaceFirst(WEEKDAY_PREFIX, "")
         if (t.isEmpty()) return 0L
         for (pattern in FORMATS) {
             val parsed = runCatching {

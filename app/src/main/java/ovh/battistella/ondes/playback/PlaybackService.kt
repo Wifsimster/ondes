@@ -72,6 +72,14 @@ class PlaybackService : MediaLibraryService() {
     /** The item currently playing, tracked so we can mark it finished on transition. */
     private var playingMediaId: String? = null
 
+    /**
+     * An incoming episode whose saved resume point hasn't been restored yet.
+     * The seek to a new item buffers, which fires onIsPlayingChanged(false)
+     * while the playhead sits at 0:00 — saving that would overwrite the very
+     * position [resumeIncomingAtSavedPosition] is about to read.
+     */
+    private var pendingResumeId: String? = null
+
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "onCreate: media service starting")
@@ -122,8 +130,12 @@ class PlaybackService : MediaLibraryService() {
                 // player's cursor has already moved to the new item, so its
                 // position/duration would clobber the wrong row (issue P0-1).
                 // An AUTO transition means the old episode played out and is
-                // finished (below), so it is deliberately not saved here.
-                if (reason != Player.DISCONTINUITY_REASON_SEEK) return
+                // finished (below), so it is deliberately not saved here. REMOVE
+                // is what starting another episode reports (setMediaItems replaces
+                // the playlist); without it the last few seconds were lost.
+                if (reason != Player.DISCONTINUITY_REASON_SEEK &&
+                    reason != Player.DISCONTINUITY_REASON_REMOVE
+                ) return
                 val oldId = oldPosition.mediaItem?.mediaId?.takeIf { it.isNotBlank() } ?: return
                 if (oldId != newPosition.mediaItem?.mediaId) {
                     persistPositionFor(oldId, oldPosition.positionMs)
@@ -146,6 +158,7 @@ class PlaybackService : MediaLibraryService() {
                     (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
                         reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK)
                 ) {
+                    pendingResumeId = newId
                     resumeIncomingAtSavedPosition(newId)
                 }
             }
@@ -446,7 +459,7 @@ class PlaybackService : MediaLibraryService() {
     private fun persistPosition() {
         val item = player.currentMediaItem ?: return
         val id = item.mediaId
-        if (id.isBlank()) return
+        if (id.isBlank() || id == pendingResumeId) return
         val position = player.currentPosition.coerceAtLeast(0)
         val duration = player.duration.let { if (it == C.TIME_UNSET) 0L else it }
         scope.launch(Dispatchers.IO) {
@@ -476,11 +489,15 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun resumeIncomingAtSavedPosition(mediaId: String) {
         scope.launch {
-            val episode = withContext(Dispatchers.IO) { repository.getEpisode(mediaId) } ?: return@launch
-            val target = PlaybackTransitions.resumeTargetMs(episode.positionMs, episode.isFinished)
-                ?: return@launch
-            if (player.currentMediaItem?.mediaId == mediaId) {
-                player.seekTo(target)
+            try {
+                val episode = withContext(Dispatchers.IO) { repository.getEpisode(mediaId) } ?: return@launch
+                val target = PlaybackTransitions.resumeTargetMs(episode.positionMs, episode.isFinished)
+                    ?: return@launch
+                if (player.currentMediaItem?.mediaId == mediaId) {
+                    player.seekTo(target)
+                }
+            } finally {
+                if (pendingResumeId == mediaId) pendingResumeId = null
             }
         }
     }
