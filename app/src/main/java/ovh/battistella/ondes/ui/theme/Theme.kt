@@ -86,7 +86,7 @@ private val LightOndesColors = OndesColors(
  * Ondes' theme entry point. Wraps [MaterialExpressiveTheme] — which supplies
  * the Material 3 Expressive spring-based [MotionScheme] and component defaults —
  * and provides the brand token layer ([OndesColors], [OndesSpacing], [OndesShapes])
- * on top.
+ * and type scale ([OndesTypography]) on top.
  *
  * Material You dynamic color is kept on by default; the indigo brand tokens stay
  * fixed so the identity matches the launcher icon regardless of the device wallpaper.
@@ -124,6 +124,7 @@ fun OndesTheme(
         MaterialExpressiveTheme(
             colorScheme = colorScheme,
             motionScheme = MotionScheme.expressive(),
+            typography = OndesTypography,
             content = content,
         )
     }

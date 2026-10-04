@@ -8,12 +8,18 @@ Outputs (docs/store-assets/):
 The mark mirrors the adaptive launcher icon: five rounded "sound-wave" bars in
 white over a diagonal indigo gradient. Run: python3 scripts/generate-store-assets.py
 """
+import os
+
 from PIL import Image, ImageDraw, ImageFont
 
 C0 = (61, 90, 254)    # #3D5AFE  indigo A200
 C1 = (26, 35, 126)    # #1A237E  indigo 900
-FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-FONT_REG = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+# Brand fonts bundled with the app (see docs/fonts/): Space Grotesk for the
+# wordmark, Manrope for the tagline.
+FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+                        "app", "src", "main", "res", "font")
+FONT_WORDMARK = os.path.join(FONT_DIR, "space_grotesk_bold.ttf")
+FONT_TAGLINE = os.path.join(FONT_DIR, "manrope_medium.ttf")
 
 # Bars in the 108x108 icon viewport: (center_x, top_y, bottom_y)
 BARS = [(28, 42, 66), (41, 34, 74), (54, 26, 82), (67, 34, 74), (80, 42, 66)]
@@ -76,18 +82,20 @@ def make_feature(path):
     img.alpha_composite(wave_mark((w, h), unit, offset=(off_x, off_y)))
     # Wordmark + tagline on the right.
     d = ImageDraw.Draw(img)
-    title = ImageFont.truetype(FONT_BOLD, 150)
-    sub = ImageFont.truetype(FONT_REG, 44)
+    title = ImageFont.truetype(FONT_WORDMARK, 150)
+    sub = ImageFont.truetype(FONT_TAGLINE, 44)
     tx = 470
-    d.text((tx, 175), "Ondes", font=title, fill=(255, 255, 255, 255))
-    d.text((tx + 6, 330), "Lecteur de podcasts", font=sub,
+    # Place by baseline ("ls" anchor) so the layout doesn't depend on each
+    # font's ascent metrics.
+    d.text((tx, 300), "Ondes", font=title, anchor="ls",
+           fill=(255, 255, 255, 255))
+    d.text((tx + 6, 358), "Lecteur de podcasts", font=sub, anchor="ls",
            fill=(255, 255, 255, 230))
     img.convert("RGB").save(path)
     print("wrote", path)
 
 
 if __name__ == "__main__":
-    import os
     out = os.path.join(os.path.dirname(__file__), "..", "docs", "store-assets")
     out = os.path.abspath(out)
     os.makedirs(out, exist_ok=True)

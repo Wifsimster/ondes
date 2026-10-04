@@ -47,6 +47,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
@@ -80,6 +81,7 @@ import ovh.battistella.ondes.ui.components.PodcastArtwork
 import ovh.battistella.ondes.ui.components.WavySliderTrack
 import ovh.battistella.ondes.ui.components.formatTime
 import ovh.battistella.ondes.ui.theme.OndesTheme
+import ovh.battistella.ondes.ui.theme.tabularNums
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -282,8 +284,9 @@ private fun PlayerControls(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(formatTime(sliderPosition.toLong()), style = MaterialTheme.typography.bodySmall)
-            Text(formatTime(duration), style = MaterialTheme.typography.bodySmall)
+            val timeStyle = MaterialTheme.typography.bodySmall.tabularNums()
+            Text(formatTime(sliderPosition.toLong()), style = timeStyle)
+            Text(formatTime(duration), style = timeStyle)
         }
 
         Spacer(Modifier.height(OndesTheme.spacing.sm))
@@ -465,7 +468,8 @@ private fun SleepControl(
                     remainingMs > 0 -> formatTime(remainingMs)
                     endOfEpisode -> stringResource(R.string.sleep_end)
                     else -> stringResource(R.string.sleep)
-                }
+                },
+                style = LocalTextStyle.current.tabularNums(),
             )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -524,7 +528,7 @@ private fun ChaptersSheet(
                 ) {
                     Text(
                         text = formatTime(chapter.startMs),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.tabularNums(),
                         color = if (isCurrent) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.width(64.dp),

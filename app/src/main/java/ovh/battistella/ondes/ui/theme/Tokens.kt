@@ -10,8 +10,8 @@ import androidx.compose.ui.unit.dp
 /**
  * Ondes' design-system tokens — the named values the UI is built from.
  *
- * Material 3 (via [OndesTheme]) still owns the base color scheme, typography and
- * motion. These three token sets layer the *brand* on top: a fixed indigo
+ * Material 3 (via [OndesTheme]) still owns the base color scheme, type scale and
+ * motion; the brand fonts live in Type.kt. These three token sets layer the *brand* on top: a fixed indigo
  * identity (matching the launcher icon), a consistent spacing rhythm and a shared
  * shape vocabulary, so a change here ripples to every screen instead of being
  * re-tuned per call site.
