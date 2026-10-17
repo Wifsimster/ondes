@@ -55,7 +55,7 @@ Legend: ✅ done · 🟡 partially done / needs action · ⬜ not started ·
 | 4.2 | Short description (≤80) + full description (≤4000) | ✅ | Drafted EN + FR in [`docs/store-listing.md`](store-listing.md) (§8); lengths verified within limits — name 22/27, short 76/79, full 1580/1827 chars (EN/FR). |
 | 4.3 | **Hi-res icon 512×512 PNG** (32-bit, alpha) | ✅ | `docs/store-assets/icon-512.png` (matches the in-app adaptive icon). |
 | 4.4 | **Feature graphic 1024×500 PNG/JPG** | ✅ | `docs/store-assets/feature-graphic-1024x500.png`. |
-| 4.5 | Phone screenshots (2–8, min 320px, 16:9 or 9:16) | 🟡 | 5 exist in `docs/screenshots/`, all **640×1386** PNG. They clear the 320px min, but the **2.17:1** side ratio exceeds Play's **2:1** max → re-export padded/cropped to ≤2:1 (e.g. ≤1280px tall at 640px wide), and prefer device-native width (**≥1080px**) for crisper listings. |
+| 4.5 | Phone screenshots (2–8, min 320px, 16:9 or 9:16) | 🟡 | 8 exist in `docs/screenshots/` (fictional demo shows), all **540×1200** PNG. They clear the 320px min, but the **2.22:1** side ratio exceeds Play's **2:1** max → re-export padded/cropped to ≤2:1 (e.g. ≤1280px tall at 640px wide), and prefer device-native width (**≥1080px**) for crisper listings. |
 | 4.6 | (Optional) tablet / Android Auto / 7"+10" screenshots | ⬜ | App supports Android Auto — consider a car screenshot. |
 | 4.7 | Contact email + (optional) website | ✅ | battistella@proton.me (see §7). |
 
