@@ -67,8 +67,6 @@ class PodcastScreenTest {
     @Test
     fun showTitleAndEpisodesRender() {
         val vm = build()
-        // Seed directly so the list is present at first composition (the VM's
-        // init refresh runs on a real IO thread and isn't awaited by the clock).
         runBlocking {
             db.podcastDao().upsert(TestSupport.podcast(feedUrl = feedUrl, title = "My Show"))
             db.episodeDao().upsertAll(
@@ -80,11 +78,6 @@ class PodcastScreenTest {
                 PodcastScreen(onBack = {}, onOpenPlayer = {}, viewModel = vm)
             }
         }
-        // The show title renders in the top bar (episode list lives below a tall
-        // header in a LazyColumn; episode/filtering behaviour is covered by the
-        // PodcastViewModel test).
-        // "My Show" appears both in the top bar and the header, so assert on the
-        // first match.
         compose.waitUntil(5_000) {
             compose.onAllNodesWithText("My Show").fetchSemanticsNodes().isNotEmpty()
         }

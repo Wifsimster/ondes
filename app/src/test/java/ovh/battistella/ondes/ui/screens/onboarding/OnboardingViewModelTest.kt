@@ -60,7 +60,6 @@ class OnboardingViewModelTest {
 
     @Test
     fun `proceeding to proposals dedupes shows that chart in two themes`() = runTest(mainDispatcher.dispatcher) {
-        // Same feed returned for every theme -> a single deduped proposal.
         every { search.topPodcasts(any(), any()) } returns listOf(
             TestSupport.searchResult(feedUrl = "https://dup.example/feed", title = "Everywhere FM"),
         )
@@ -106,7 +105,6 @@ class OnboardingViewModelTest {
         vm.subscribeSelectedAndFinish()
         advanceUntilIdle()
 
-        // Only the picked feed was subscribed; the skipped one never touched the DB.
         assertEquals("Chosen", db.podcastDao().getPodcast("https://pick.example/feed")?.title)
         assertEquals(null, db.podcastDao().getPodcast("https://skip.example/feed"))
         coVerify { settingsRepository.setOnboardingDone(true) }

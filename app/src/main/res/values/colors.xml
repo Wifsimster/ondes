@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Cold-start splash background; matches the Compose light theme surface.
-         A dark variant lives in values-night/colors.xml. -->
     <color name="seed_background">#FFFAFBFF</color>
-    <!-- Adaptive-icon background tone (also used by the indigo gradient drawable). -->
     <color name="ic_launcher_background">#FF283593</color>
 </resources>

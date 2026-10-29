@@ -69,8 +69,6 @@ fun HomeScreen(
             )
         },
     ) { padding ->
-        // Top inset comes from this screen's app bar; the bottom inset (nav bar +
-        // mini-player) comes from the root scaffold's contentPadding.
         when {
             uiState.loading -> Box(
                 Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),

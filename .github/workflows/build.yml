@@ -8,9 +8,6 @@ on:
 permissions:
   contents: write
 
-# Run JavaScript-based actions on Node.js 24 (the current LTS runtime) rather
-# than the deprecated Node 20. Node 24 becomes the runner default in mid-2026;
-# setting it explicitly puts CI on LTS now and clears the deprecation warning.
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -42,8 +39,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      # Unit + Robolectric/Compose tests run on the JVM (no emulator), so they
-      # gate every build. Fail fast here before spending time on the APKs.
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
@@ -55,8 +50,6 @@ jobs:
           path: app/build/reports/tests/testDebugUnitTest
           if-no-files-found: ignore
 
-      # Debug APK first — it is fully installable on its own and is the
-      # guaranteed deliverable even if the minified release build hiccups.
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
@@ -77,11 +70,6 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
-      # Android App Bundle — the artifact uploaded to the Play Store. Signed
-      # with the upload key when the signing secrets are present; otherwise it
-      # falls back to the debug key and is suitable for inspection only, not
-      # for Play submission. Configure repo secrets KEYSTORE_BASE64 (the .jks
-      # base64-encoded), KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD.
       - name: Build release AAB (App Bundle)
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -103,17 +91,11 @@ jobs:
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
 
-      # Fail the build if any bundled native library is not 16 KB page-aligned,
-      # which Google Play requires for new apps/updates on Android 15+. Runs
-      # after upload so the .aab is still downloadable for diagnosis on failure.
       - name: Verify 16 KB native-lib alignment
         run: |
           chmod +x scripts/check-16kb-alignment.sh
           ./scripts/check-16kb-alignment.sh app/build/outputs/bundle/release/app-release.aab
 
-      # Stage the downloadable assets under stable filenames (so the README's
-      # permalinks keep resolving) plus a checksum file, which is what lets
-      # someone verify a sideloaded APK against what CI actually built.
       - name: Stage download assets (main only)
         if: github.ref == 'refs/heads/main'
         run: |
@@ -123,9 +105,6 @@ jobs:
           (cd dist && sha256sum app-debug.apk app-release.apk > SHA256SUMS.txt)
           cat dist/SHA256SUMS.txt
 
-      # Rolling "latest" release: a one-tap, login-free download of the current
-      # main build. Marked as a pre-release / not-latest so it never displaces
-      # the semantic-release version tag that /releases/latest resolves to.
       - name: Publish rolling release (main only)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2

@@ -21,11 +21,6 @@ object Routes {
     fun podcast(feedUrl: String) = "podcast/${Uri.encode(feedUrl)}"
 }
 
-/**
- * The bottom-navigation destinations. Material 3 specs a navigation bar for 3–5
- * destinations: Downloads lives inside Library (a filtered view) and Settings is
- * reached from the Home top-bar gear, keeping this to a focused four.
- */
 enum class TopLevelDestination(
     val route: String,
     val labelRes: Int,

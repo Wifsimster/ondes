@@ -20,13 +20,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ovh.battistella.ondes.ui.theme.OndesTheme
 
-/**
- * One shared, on-brand empty / zero state: brand-tinted icon, a headline, a
- * supporting line and an optional call-to-action. Used wherever a list can be
- * empty (library, downloads, search, home) so first-run and edge states feel
- * intentional and guide the user to the next step instead of showing a blank
- * screen or a stray line of grey text.
- */
 @Composable
 fun OndesEmptyState(
     icon: ImageVector,

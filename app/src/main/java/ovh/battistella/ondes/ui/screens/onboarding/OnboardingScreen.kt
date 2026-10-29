@@ -54,8 +54,6 @@ import ovh.battistella.ondes.ui.theme.OndesTheme
 fun OnboardingScreen(viewModel: OnboardingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // System back from the proposals step returns to the theme picker rather than
-    // exiting onboarding entirely.
     BackHandler(enabled = state.step == OnboardingStep.PROPOSALS) { viewModel.back() }
 
     when (state.step) {
@@ -266,7 +264,6 @@ private fun SelectableProposalRow(
             )
         }
         Spacer(Modifier.width(OndesTheme.spacing.sm))
-        // Null callback: the whole row is the toggle target (above).
         Checkbox(checked = checked, onCheckedChange = null)
     }
 }

@@ -40,10 +40,6 @@ class SearchViewModelTest {
 
     private fun viewModel(): SearchViewModel {
         db = TestSupport.inMemoryDb()
-        // Unconfined IO so repository work — including the refresh's Room
-        // withTransaction — completes eagerly inline rather than depending on the
-        // StandardTestDispatcher's virtual clock (which room-ktx's transaction
-        // dispatcher doesn't advance under a detached launch). Mirrors SearchScreenTest.
         val repo = TestSupport.repository(db, Dispatchers.Unconfined, rss = rss, search = search)
         return SearchViewModel(context, SavedStateHandle(), repo, SnackbarController())
     }
@@ -109,8 +105,6 @@ class SearchViewModelTest {
         every { rss.fetch("https://example.com/feed.xml", any(), any()) } returns
             TestSupport.feedFetch(TestSupport.parsedFeed(title = "Pasted Show"))
         val vm = viewModel()
-        // openPodcast is a replay-0 SharedFlow, so subscribe (eagerly, via an
-        // unconfined dispatcher) before triggering the emission.
         val opened = mutableListOf<String>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.openPodcast.collect { opened += it }
@@ -120,10 +114,8 @@ class SearchViewModelTest {
         vm.search()
         advanceUntilIdle()
 
-        // The newly-subscribed show is emitted for navigation, and the row is flagged.
         assertEquals(listOf("https://example.com/feed.xml"), opened)
         assertTrue(vm.state.value.subscribedFeeds.contains("https://example.com/feed.xml"))
-        // And it really landed in the database.
         assertEquals("Pasted Show", db.podcastDao().getPodcast("https://example.com/feed.xml")?.title)
     }
 
@@ -134,8 +126,6 @@ class SearchViewModelTest {
             db.podcastDao().upsert(TestSupport.podcast(feedUrl = "https://sub.example/feed"))
             advanceUntilIdle()
 
-            // Derived from the repository, so a row already subscribed elsewhere
-            // renders as "Subscribed" rather than offering Subscribe again (P1-17).
             assertTrue(vm.state.value.subscribedFeeds.contains("https://sub.example/feed"))
         }
 
@@ -148,8 +138,6 @@ class SearchViewModelTest {
             vm.subscribe(TestSupport.searchResult(feedUrl = "https://x.example/feed"))
             advanceUntilIdle()
 
-            // The failure is a snackbar, not the full-screen error state that would
-            // trap the user on the blank-query Browse landing (P1-18).
             assertNull(vm.state.value.error)
         }
 

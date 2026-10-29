@@ -49,7 +49,6 @@
 
   .layout { flex: 1; display: flex; min-height: 0; }
 
-  /* Sidebar */
   aside {
     width: 320px;
     flex: none;
@@ -86,7 +85,6 @@
   }
   .reset:hover { color: var(--text); border-color: #4a5b72; }
 
-  /* Stage */
   main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .stage-wrap { flex: 1; overflow: auto; padding: 22px; position: relative; }
   #diagram { position: relative; min-width: 760px; }
@@ -136,7 +134,6 @@
   .filtering .node:not(.active) { opacity: var(--dim-opacity); }
   .filtering .layer-label { opacity: .5; }
 
-  /* Steps panel */
   .steps {
     border-top: 1px solid var(--layer-line);
     background: var(--panel);
@@ -207,7 +204,6 @@
             </marker>
           </defs>
         </svg>
-        <!-- layers injected here -->
       </div>
     </div>
     <div class="steps empty" id="steps">
@@ -216,7 +212,6 @@
   </main>
 </div>
 
-<!-- Inline fallback copy of workflows.json so this page also works opened directly from disk (file://). -->
 <script type="application/json" id="embedded-data">
 {
   "meta": {
@@ -444,10 +439,9 @@
 
   var data = null;
   var activeFlow = null;
-  var nodeEls = {};        // id -> element
+  var nodeEls = {};
   var wires = document.getElementById("wires");
 
-  // ---- Load data: prefer external workflows.json, fall back to embedded copy ----
   function loadData() {
     return fetch("workflows.json", { cache: "no-store" })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -519,7 +513,6 @@
       b.classList.toggle("active", b.dataset.id === id);
     });
 
-    // Highlight involved nodes
     document.getElementById("diagram").classList.add("filtering");
     Object.values(nodeEls).forEach(function (n) { n.classList.remove("active", "endpoint"); });
     var involved = {};
@@ -527,7 +520,6 @@
     Object.keys(involved).forEach(function (nid) {
       if (nodeEls[nid]) nodeEls[nid].classList.add("active");
     });
-    // Mark the very first source and the last destination as endpoints
     nodeEls[flow.steps[0].from] && nodeEls[flow.steps[0].from].classList.add("endpoint");
 
     renderSteps(flow);
@@ -570,13 +562,11 @@
     });
   }
 
-  // ---- Wire drawing ----
   function clearWires() {
     Array.prototype.slice.call(wires.querySelectorAll(".wire, .badge"))
       .forEach(function (n) { n.remove(); });
   }
 
-  // Intersection of the segment center->target with the target rect's border.
   function edgePoint(rect, cx, cy, tx, ty) {
     var dx = tx - cx, dy = ty - cy;
     var hw = rect.w / 2, hh = rect.h / 2;
@@ -602,7 +592,6 @@
     var base = document.getElementById("diagram").getBoundingClientRect();
     var SVGNS = "http://www.w3.org/2000/svg";
 
-    // Track repeated pairs so overlapping arrows fan out.
     var pairCount = {};
 
     flow.steps.forEach(function (s, i) {
@@ -614,13 +603,11 @@
       var start = edgePoint(a, b.cx, b.cy, a.cx, a.cy);
       var end = edgePoint(b, a.cx, a.cy, b.cx, b.cy);
 
-      // Perpendicular bow so multiple arrows / long jumps don't overlap.
       var mx = (start.x + end.x) / 2, my = (start.y + end.y) / 2;
       var vx = end.x - start.x, vy = end.y - start.y;
       var len = Math.hypot(vx, vy) || 1;
       var nx = -vy / len, ny = vx / len;
       var bow = 26 + seen * 34;
-      // Bias bow direction by horizontal travel so adjacent flows read cleanly.
       var dir = (s.from.charCodeAt(0) % 2 === 0) ? 1 : -1;
       if (seen % 2 === 1) dir *= -1;
       var ctrlX = mx + nx * bow * dir, ctrlY = my + ny * bow * dir;
@@ -630,13 +617,12 @@
       path.setAttribute("d", d);
       path.setAttribute("class", "wire");
       path.setAttribute("marker-end", "url(#arrow)");
-      var pathLen = Math.hypot(vx, vy) + bow; // approx for dash animation
+      var pathLen = Math.hypot(vx, vy) + bow;
       path.style.setProperty("--len", pathLen);
       path.style.animationDelay = (i * 0.08) + "s";
       path.dataset.idx = i;
       wires.appendChild(path);
 
-      // Numbered badge at the curve apex (t = 0.5 on quadratic).
       var bxq = 0.25 * start.x + 0.5 * ctrlX + 0.25 * end.x;
       var byq = 0.25 * start.y + 0.5 * ctrlY + 0.25 * end.y;
       var g = document.createElementNS(SVGNS, "g");
@@ -651,7 +637,6 @@
       g.appendChild(c); g.appendChild(t);
       wires.appendChild(g);
 
-      // Hover the badge to spotlight its step.
       g.style.pointerEvents = "all";
       g.style.cursor = "pointer";
       g.addEventListener("mouseenter", function () { highlightStep(i, true); });
@@ -669,7 +654,6 @@
     if (li) li.classList.toggle("hot", on);
   }
 
-  // Redraw wires when layout changes.
   var resizeTimer;
   window.addEventListener("resize", function () {
     if (!activeFlow) return;
@@ -677,7 +661,6 @@
     resizeTimer = setTimeout(function () { drawWires(activeFlow); }, 120);
   });
   document.querySelector(".stage-wrap").addEventListener("scroll", function () {
-    // wires are positioned inside #diagram, so they scroll with it — no redraw needed.
   });
 
   loadData().then(function (d) {

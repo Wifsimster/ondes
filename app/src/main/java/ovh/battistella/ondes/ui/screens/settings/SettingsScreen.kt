@@ -70,12 +70,10 @@ fun SettingsScreen(
     val notificationsAllowed = rememberNotificationsAllowed(context)
     val batteryUnrestricted = rememberBatteryUnrestricted(context)
 
-    // Surface one-shot results of data operations (export/import) as toasts.
     LaunchedEffect(Unit) {
         viewModel.messages.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
 
-    // Storage Access Framework pickers — files stay under the user's control.
     val exportOpmlLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/xml"),
     ) { uri -> uri?.let(viewModel::exportOpml) }
@@ -167,16 +165,10 @@ fun SettingsScreen(
             onCheckedChange = viewModel::setBackgroundRefresh,
         )
         if (settings.backgroundRefresh) {
-            // A background refresh the system has quietly stopped running looks
-            // exactly like one that is working — until you notice the app only
-            // ever finds new episodes while you are looking at it.
             InfoRow(
                 title = stringResource(R.string.last_checked_title),
                 value = lastCheckedLabel(context, lastRefreshAt),
             )
-            // Doze and the OEM battery managers are the usual reason nothing
-            // arrives until the app is opened: a job from an app you haven't
-            // touched gets a handful of windows a day, or none at all.
             if (!batteryUnrestricted) {
                 ActionRow(
                     title = stringResource(R.string.battery_limited_title),
@@ -191,9 +183,6 @@ fun SettingsScreen(
             checked = settings.newEpisodeNotifications,
             onCheckedChange = viewModel::setNewEpisodeNotifications,
         )
-        // The switch above only records a preference: if the OS permission was
-        // denied, nothing is ever posted and the switch quietly lied about it
-        // (issue P2). Say so, and offer the one place that can fix it.
         if (settings.newEpisodeNotifications && !notificationsAllowed) {
             ActionRow(
                 title = stringResource(R.string.notifs_blocked_title),
@@ -249,11 +238,6 @@ fun SettingsScreen(
     }
 }
 
-/**
- * Whether the app may actually post notifications, re-checked whenever Settings
- * comes back to the foreground — the user may have just changed it in the
- * system settings we sent them to.
- */
 @Composable
 private fun rememberNotificationsAllowed(context: android.content.Context): Boolean {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -270,15 +254,6 @@ private fun rememberNotificationsAllowed(context: android.content.Context): Bool
     return allowed
 }
 
-/**
- * Whether the app is exempt from battery optimisation, re-checked when Settings
- * comes back to the foreground so a change made in the system screen shows up
- * immediately.
- *
- * Only the exemption is readable. The OEM "app sleep" lists layered on top of it
- * are not, so a `true` here means "Android itself is not holding the refresh
- * back" rather than "the refresh is guaranteed to run".
- */
 @Composable
 private fun rememberBatteryUnrestricted(context: android.content.Context): Boolean {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -297,16 +272,6 @@ private fun isBatteryUnrestricted(context: android.content.Context): Boolean =
     context.getSystemService(PowerManager::class.java)
         ?.isIgnoringBatteryOptimizations(context.packageName) ?: true
 
-/**
- * Send the user to the system list of battery-optimised apps, falling back to
- * this app's details screen (which every device has) if that list isn't offered.
- *
- * Deliberately *not* the one-tap `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`
- * dialog: that needs a permission Play restricts to a short list of app
- * categories a podcast player is not on. Neither intent here needs a permission.
- * Both are tried rather than resolved first — package-visibility filtering can
- * hide the Settings app from resolveActivity even where the screen exists.
- */
 private fun openBatterySettings(context: android.content.Context) {
     val appDetails = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
         .setData(Uri.fromParts("package", context.packageName, null))
@@ -318,7 +283,6 @@ private fun openBatterySettings(context: android.content.Context) {
     }
 }
 
-/** "Never", or how long ago the last successful background refresh finished. */
 private fun lastCheckedLabel(context: android.content.Context, at: Long): String =
     if (at <= 0L) {
         context.getString(R.string.last_checked_never)
@@ -330,7 +294,6 @@ private fun lastCheckedLabel(context: android.content.Context, at: Long): String
         ).toString()
     }
 
-/** The system screen where app notifications can be re-enabled. */
 private fun appNotificationSettingsIntent(context: android.content.Context): Intent =
     Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
         .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)

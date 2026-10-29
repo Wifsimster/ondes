@@ -70,7 +70,6 @@ import ovh.battistella.ondes.ui.components.PodcastArtwork
 import ovh.battistella.ondes.ui.screens.downloads.DownloadsScreen
 import ovh.battistella.ondes.ui.theme.OndesTheme
 
-/** The two views the Library hosts: subscribed shows and offline downloads. */
 private enum class LibraryTab(val labelRes: Int) {
     PODCASTS(R.string.library_tab_podcasts),
     DOWNLOADS(R.string.nav_downloads),
@@ -88,16 +87,12 @@ fun LibraryScreen(
     val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     val selected by viewModel.selectedFeedUrls.collectAsStateWithLifecycle()
-    // rememberSaveable: the picked tab used to snap back to Podcasts on rotation
-    // (issue P2).
     var tab by rememberSaveable { mutableStateOf(LibraryTab.PODCASTS) }
     var showConfirm by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
-    // Selection mode only applies to the Podcasts tab.
     val selecting = selected.isNotEmpty() && tab == LibraryTab.PODCASTS
 
-    // System back exits selection mode before leaving the screen.
     BackHandler(enabled = selecting) { viewModel.clearSelection() }
 
     Scaffold(

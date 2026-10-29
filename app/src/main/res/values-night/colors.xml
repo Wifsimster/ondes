@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark cold-start splash background; matches the Compose dark theme surface. -->
     <color name="seed_background">#FF111319</color>
 </resources>

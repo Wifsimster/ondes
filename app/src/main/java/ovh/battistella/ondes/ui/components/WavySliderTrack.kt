@@ -27,17 +27,6 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.sin
 
-/**
- * A `track` slot for [androidx.compose.material3.Slider] that draws the played
- * portion as a rippling wave — the "ondes" of the app name, in the player.
- *
- * The wave only moves while [playing]; on pause its amplitude eases down to a
- * flat line (the same cue Android's own media controls use), so the motion
- * doubles as a playback-state indicator rather than being pure decoration. The
- * unplayed portion stays flat, with Material 3 Expressive's thumb gap and end
- * stop. Material3 ships wavy *progress indicators* but no wavy slider, hence
- * the hand-drawn track.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WavySliderTrack(
@@ -56,8 +45,6 @@ fun WavySliderTrack(
         animationSpec = tween(durationMillis = 400),
         label = "wave-amplitude",
     )
-    // Scroll the wave to the left while playing. The phase state is only read
-    // during draw, so it invalidates the canvas without recomposing the slider.
     val phase by rememberInfiniteTransition(label = "wave-phase").animateFloat(
         initialValue = 0f,
         targetValue = (2 * PI).toFloat(),
@@ -73,8 +60,6 @@ fun WavySliderTrack(
     Canvas(
         modifier
             .fillMaxWidth()
-            // Tall enough for the wave crests plus the stroke; the thumb is
-            // centred on the same axis by the slider.
             .height(waveAmplitude * 2 + strokeWidth + 8.dp),
     ) {
         val stroke = strokeWidth.toPx()
@@ -85,8 +70,6 @@ fun WavySliderTrack(
         val activeEnd = (thumbX - gap).coerceAtLeast(0f)
         val inactiveStart = (thumbX + gap).coerceAtMost(size.width)
 
-        // Played portion: a sine wave anchored at the left edge. A straight line
-        // when the amplitude has eased to zero (paused).
         if (activeEnd > 0f) {
             if (amplitude < 0.5f) {
                 drawLine(
@@ -115,7 +98,6 @@ fun WavySliderTrack(
             }
         }
 
-        // Unplayed portion: flat, with the Expressive end-stop dot.
         if (inactiveStart < size.width) {
             drawLine(
                 color = inactiveColor,

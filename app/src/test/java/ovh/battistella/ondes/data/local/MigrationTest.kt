@@ -19,19 +19,6 @@ import ovh.battistella.ondes.di.AppModule
 import java.io.File
 import java.util.concurrent.Executor
 
-/**
- * Runs the real migrations against a real database built at the *previous*
- * schema version.
- *
- * The app no longer falls back to destroying the database when a migration is
- * missing or wrong (issue P1-10), so a schema change that ships without one has
- * to fail here rather than at a user's next launch. The old database is built
- * from the schema JSON Room exported for the version it starts at — checked in under
- * `app/schemas` and put on the test classpath — so it is the schema that
- * actually shipped, not a hand-written approximation. Opening the result with
- * Room then validates the migrated schema against the current entities: Room
- * refuses to open a database whose tables don't match.
- */
 @RunWith(RobolectricTestRunner::class)
 class MigrationTest {
 
@@ -68,19 +55,15 @@ class MigrationTest {
 
         val db = openMigratedDatabase(AppModule.MIGRATION_5_6, AppModule.MIGRATION_6_7)
 
-        // The episode is re-keyed to feedUrl::guid, and everything the *user*
-        // owns — resume position, downloaded file — comes with it.
         val migrated = db.episodeDao().getEpisode(episodeId(FEED_A, "1"))
         assertEquals("A1", migrated?.title)
         assertEquals(12345L, migrated?.positionMs)
         assertEquals("/data/a1.audio", migrated?.localFilePath)
         assertNull(db.episodeDao().getEpisode("1"))
 
-        // The queue points at the new id rather than a now-dangling old one.
         assertEquals(listOf(episodeId(FEED_A, "1")), db.queueDao().getOrderedIds())
         assertEquals(listOf(episodeId(FEED_A, "1")), db.queueDao().getQueueOnce().map { it.id })
 
-        // Per-podcast preferences survive; the new validator columns start empty.
         val podcast = db.podcastDao().getPodcast(FEED_A)
         assertEquals(1.5f, podcast?.overrideSpeed)
         assertTrue(podcast?.autoDownload == true)
@@ -88,11 +71,6 @@ class MigrationTest {
         assertNull(podcast?.lastModified)
     }
 
-    /**
-     * The whole point of the re-key: two feeds that both call their first episode
-     * "1" can now each keep theirs. Under the bare-GUID key the second one was
-     * swallowed by INSERT-IGNORE (issue P0-7).
-     */
     @Test
     fun `after migrating two feeds can each keep their episode 1`() = runBlocking {
         createDatabaseAt(version = 5) {
@@ -134,11 +112,6 @@ class MigrationTest {
         assertEquals("B1", db.episodeDao().getEpisode(episodeId(FEED_B, "1"))?.title)
     }
 
-    /**
-     * The back catalogue that was already on the device when v7 landed must stay
-     * unannounced: flagging it would turn the first refresh after the update into
-     * a notification for every episode the user already has.
-     */
     @Test
     fun `migrating from 6 leaves the existing episodes unannounced`() = runBlocking {
         createDatabaseAt(version = 6) {
@@ -166,10 +139,6 @@ class MigrationTest {
         assertEquals(emptyList<EpisodeEntity>(), db.episodeDao().getPendingNotification())
     }
 
-    /**
-     * Build a database at schema [version] from the JSON Room exported for it,
-     * then let [populate] insert fixture rows into it.
-     */
     private fun createDatabaseAt(version: Int, populate: SQLiteDatabase.() -> Unit) {
         val file: File = context.getDatabasePath(DB_NAME)
         file.parentFile?.mkdirs()
@@ -191,10 +160,6 @@ class MigrationTest {
         }
     }
 
-    /**
-     * Open the database with Room, which runs the migration and then validates
-     * the result against the current entities.
-     */
     private fun openMigratedDatabase(vararg migrations: Migration): OndesDatabase {
         val directExecutor = Executor { it.run() }
         return Room.databaseBuilder(context, OndesDatabase::class.java, DB_NAME)

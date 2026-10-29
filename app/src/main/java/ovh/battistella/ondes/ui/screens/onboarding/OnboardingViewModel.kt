@@ -20,24 +20,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** The two steps of first-run onboarding. */
 enum class OnboardingStep { THEMES, PROPOSALS }
 
 data class OnboardingUiState(
     val step: OnboardingStep = OnboardingStep.THEMES,
-    val selectedThemes: Set<Int> = emptySet(),        // genreIds
+    val selectedThemes: Set<Int> = emptySet(),
     val proposalsLoading: Boolean = false,
-    val proposals: List<PodcastSearchResult> = emptyList(), // deduped by feedUrl
-    val chosenFeeds: Set<String> = emptySet(),        // feedUrls the user ticked
-    val proposalsError: Boolean = false,              // load failed / nothing came back
-    val subscribing: Boolean = false,                 // final subscribe in flight
+    val proposals: List<PodcastSearchResult> = emptyList(),
+    val chosenFeeds: Set<String> = emptySet(),
+    val proposalsError: Boolean = false,
+    val subscribing: Boolean = false,
 )
 
-/**
- * First-run interest picker. Step 1: pick a few themes. Step 2: we *propose* the
- * top shows for those themes and the user chooses which to subscribe to — we
- * never silently bulk-subscribe.
- */
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -59,7 +53,6 @@ class OnboardingViewModel @Inject constructor(
         )
     }
 
-    /** Leave the theme picker and load the proposed shows for the chosen themes. */
     fun proceedToProposals() {
         if (_state.value.selectedThemes.isEmpty()) return
         _state.value = _state.value.copy(
@@ -72,7 +65,6 @@ class OnboardingViewModel @Inject constructor(
         loadProposals()
     }
 
-    /** Retry after a failed proposals load (re-uses the current theme selection). */
     fun retryProposals() {
         _state.value = _state.value.copy(proposalsLoading = true, proposalsError = false)
         loadProposals()
@@ -81,9 +73,6 @@ class OnboardingViewModel @Inject constructor(
     private fun loadProposals() {
         viewModelScope.launch {
             val picked = themes.filter { it.genreId in _state.value.selectedThemes }
-            // One request per theme, all in flight together: run back to back,
-            // the first screen of onboarding waited out a round-trip per theme
-            // (opt. 2).
             val aggregated = coroutineScope {
                 picked
                     .map { theme ->
@@ -92,8 +81,6 @@ class OnboardingViewModel @Inject constructor(
                     .awaitAll()
                     .flatten()
             }
-            // Cross-theme dedupe: each call dedupes internally, but the same show
-            // can chart in two themes — a duplicate feedUrl would crash the keyed list.
             val deduped = aggregated.distinctBy { it.feedUrl }
             _state.value = _state.value.copy(
                 proposalsLoading = false,
@@ -111,19 +98,10 @@ class OnboardingViewModel @Inject constructor(
         )
     }
 
-    /** Back to the theme picker, keeping selections so nothing is lost. */
     fun back() {
         _state.value = _state.value.copy(step = OnboardingStep.THEMES)
     }
 
-    /**
-     * Subscribe to only the shows the user picked, then leave onboarding.
-     *
-     * The feeds are fetched with bounded concurrency rather than one after
-     * another (opt. 2), and a partial result is reported instead of swallowed:
-     * silently dropping every failure left a first-time user staring at an empty
-     * Home screen with no idea why (issue P2).
-     */
     fun subscribeSelectedAndFinish() {
         viewModelScope.launch {
             _state.value = _state.value.copy(subscribing = true)
@@ -144,7 +122,6 @@ class OnboardingViewModel @Inject constructor(
     }
 
     companion object {
-        /** Top shows fetched per chosen theme — kept modest so the list stays digestible. */
         private const val PER_THEME_LIMIT = 10
     }
 }

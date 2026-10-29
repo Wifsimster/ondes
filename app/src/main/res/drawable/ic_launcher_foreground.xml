@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ondes brand mark: a five-bar sound-wave equalizer (rounded caps), centred
-     within the adaptive-icon safe zone. White on the gradient background; a
-     separate monochrome layer drives themed icons. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"

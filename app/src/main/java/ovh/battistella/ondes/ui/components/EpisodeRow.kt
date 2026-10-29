@@ -52,10 +52,6 @@ import ovh.battistella.ondes.data.local.DownloadState
 import ovh.battistella.ondes.data.local.EpisodeEntity
 import ovh.battistella.ondes.ui.theme.OndesTheme
 
-/**
- * Start inset that aligns a list divider with an [EpisodeRow]'s text column,
- * clearing the leading artwork: row start padding + artwork width + gap.
- */
 val EpisodeRowDividerStartInset = 84.dp
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -79,8 +75,6 @@ fun EpisodeRow(
     val playingLabel = stringResource(R.string.playing)
     val pausedLabel = stringResource(R.string.paused)
 
-    // Surface the long-press menu actions to TalkBack via the item's actions menu,
-    // so screen-reader and motor-impaired users can reach them too (#10).
     val markPlayedLabel = stringResource(R.string.mark_as_played)
     val markUnplayedLabel = stringResource(R.string.mark_as_unplayed)
     val playNextLabel = stringResource(R.string.play_next)
@@ -125,8 +119,6 @@ fun EpisodeRow(
                     modifier = Modifier.size(56.dp),
                     shape = OndesTheme.shapes.artworkSmall,
                 )
-                // The loaded episode wears the animated brand mark over its
-                // artwork — the same five bars as the launcher icon.
                 if (isCurrent) {
                     Box(
                         Modifier
@@ -145,7 +137,6 @@ fun EpisodeRow(
         }
         Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Without artwork (podcast page) the mark sits inline instead.
                 if (isCurrent && !showArtwork) {
                     PlayingEqualizer(
                         playing = isPlaying,
@@ -171,8 +162,6 @@ fun EpisodeRow(
                     durationLabel(episode.durationMs - episode.positionMs),
                 )
             } else ""
-            // Resolved before buildString: the label is localised, so it is read
-            // from resources rather than assembled from hardcoded unit letters.
             val duration = durationLabel(episode.durationMs)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (episode.isFinished) {
@@ -233,9 +222,6 @@ fun EpisodeRow(
             expanded = menuExpanded,
             onDismissRequest = { menuExpanded = false },
         ) {
-            // "Mark as played" when there's something left to finish; "mark as
-            // unplayed" when it's finished or part-way through (so an in-progress
-            // episode can be reset). A fresh, untouched episode shows only the former.
             if (!episode.isFinished) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.mark_as_played)) },
@@ -299,7 +285,6 @@ private fun DownloadAffordance(
                 modifier = Modifier.size(20.dp),
             )
         }
-        // Expressive activity indicator while the episode is fetching.
         DownloadState.DOWNLOADING, DownloadState.QUEUED -> {
             val downloadingLabel = stringResource(R.string.downloading)
             IconButton(
@@ -313,8 +298,6 @@ private fun DownloadAffordance(
                 )
             }
         }
-        // A failed download must read differently from "never downloaded" and
-        // offer a retry — tapping re-enqueues it.
         DownloadState.FAILED -> IconButton(onClick = onDownload) {
             Icon(
                 Icons.Rounded.ErrorOutline,

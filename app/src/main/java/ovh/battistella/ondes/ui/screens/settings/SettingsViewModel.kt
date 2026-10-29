@@ -35,11 +35,9 @@ class SettingsViewModel @Inject constructor(
     val settings: StateFlow<OndesSettings> = settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), OndesSettings())
 
-    /** When the background refresh last completed; 0 until it ever has. */
     val lastRefreshAt: StateFlow<Long> = settingsRepository.lastRefreshAt
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
-    /** One-shot user feedback (e.g. "Imported 12 subscriptions"), shown as a toast. */
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
@@ -61,8 +59,6 @@ class SettingsViewModel @Inject constructor(
         settingsRepository.setBackgroundRefresh(value)
         FeedRefreshScheduler.apply(context, value)
     }
-
-    // --- Data ownership: OPML & backup ---
 
     fun exportOpml(uri: Uri) = dataOp(R.string.data_op_failed) {
         val count = context.contentResolver.openOutputStream(uri)?.use { out ->
@@ -89,9 +85,6 @@ class SettingsViewModel @Inject constructor(
         context.contentResolver.openInputStream(uri)?.use { input ->
             backupManager.import(input)
         } ?: error("no stream")
-        // The restore may have flipped backgroundRefresh; the periodic job is
-        // otherwise only (re)scheduled from the toggle and at app start, so it
-        // would keep running (or stay off) against the switch until a restart.
         FeedRefreshScheduler.apply(context, settingsRepository.snapshot().backgroundRefresh)
         context.getString(R.string.restore_done)
     }
@@ -100,7 +93,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { block() }
     }
 
-    /** Run a file operation off the main thread, reporting success/failure as a message. */
     private fun dataOp(failureRes: Int, block: suspend () -> String) {
         viewModelScope.launch {
             val message = withContext(Dispatchers.IO) {

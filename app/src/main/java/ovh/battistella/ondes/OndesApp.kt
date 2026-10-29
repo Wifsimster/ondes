@@ -36,11 +36,6 @@ class OndesApp : Application(), Configuration.Provider, ImageLoaderFactory {
             .setWorkerFactory(workerFactory)
             .build()
 
-    /**
-     * Coil shares the app's single tuned [OkHttpClient] (one connection pool /
-     * timeout policy for feeds, downloads and artwork) instead of spinning up
-     * its own, with explicit memory + disk cache budgets for cover art.
-     */
     override fun newImageLoader(): ImageLoader =
         ImageLoader.Builder(this)
             .okHttpClient(okHttpClient)
@@ -59,12 +54,9 @@ class OndesApp : Application(), Configuration.Provider, ImageLoaderFactory {
         NewEpisodeNotifier.createChannel(this)
         DownloadNotifications.createChannel(this)
         scheduleBackgroundRefresh()
-        // Clear any downloaded audio no episode references any more (unsubscribed
-        // podcasts, cancelled-at-the-finish strands, stale .part files).
         downloadManager.sweepOrphans()
     }
 
-    /** Honour the saved background-refresh preference on every launch. */
     private fun scheduleBackgroundRefresh() {
         appScope.launch {
             val settings = settingsRepository.settings.first()

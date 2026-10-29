@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Generate the Play Store *upload keystore* and print the values you need for
-# local signing (keystore.properties) and CI (GitHub Actions secrets).
-#
-# Run this LOCALLY, once. NEVER commit the generated .jks or the passwords —
-# `.gitignore` already excludes *.jks and keystore.properties. Back the keystore
-# and passwords up safely: if you enrol in Play App Signing you can reset a lost
-# upload key, but without that, losing it means you can no longer ship updates.
-#
-# Usage:
-#   ./scripts/setup-upload-keystore.sh [keystore-path]
-# Optional env: KEY_ALIAS (default: upload)
 set -euo pipefail
 
 KEYSTORE="${1:-upload-keystore.jks}"
@@ -38,8 +27,6 @@ keytool -genkeypair -v \
 
 abs_path="$(cd "$(dirname "$KEYSTORE")" && pwd)/$(basename "$KEYSTORE")"
 
-# base64 with no line wrapping: GNU coreutils uses -w0; BSD/macOS wraps at 0
-# only via -b 0, but its default single output line is also fine for `base64 -d`.
 b64() { base64 -w0 "$1" 2>/dev/null || base64 "$1"; }
 
 cat <<EOF

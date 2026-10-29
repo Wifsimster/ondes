@@ -16,14 +16,11 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-// Ondes brand palette — indigo "airwaves", matching the launcher-icon gradient
-// (#3D5AFE → #1A237E). Cool sky/teal accents keep the whole system on a single
-// blue-green family so the logo and the in-app theme read as one identity.
-private val Indigo = Color(0xFF3D5AFE)        // logo primary — the signature accent
-private val IndigoBright = Color(0xFF93A3FF)  // lighter indigo for dark surfaces
-private val SkyLight = Color(0xFF0091EA)      // cool accent on light backgrounds
-private val SkyDark = Color(0xFF6FD6FF)       // cool accent on dark backgrounds
-private val TealLight = Color(0xFF00897B)     // "downloaded / saved offline"
+private val Indigo = Color(0xFF3D5AFE)
+private val IndigoBright = Color(0xFF93A3FF)
+private val SkyLight = Color(0xFF0091EA)
+private val SkyDark = Color(0xFF6FD6FF)
+private val TealLight = Color(0xFF00897B)
 private val TealDark = Color(0xFF4DD0C4)
 
 private val DarkColors = darkColorScheme(
@@ -82,15 +79,6 @@ private val LightOndesColors = OndesColors(
     downloaded = TealLight,
 )
 
-/**
- * Ondes' theme entry point. Wraps [MaterialExpressiveTheme] — which supplies
- * the Material 3 Expressive spring-based [MotionScheme] and component defaults —
- * and provides the brand token layer ([OndesColors], [OndesSpacing], [OndesShapes])
- * and type scale ([OndesTypography]) on top.
- *
- * Material You dynamic color is kept on by default; the indigo brand tokens stay
- * fixed so the identity matches the launcher icon regardless of the device wallpaper.
- */
 @Composable
 fun OndesTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -100,10 +88,6 @@ fun OndesTheme(
     val context = LocalContext.current
     val colorScheme: ColorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            // Keep Material You's wallpaper-derived palette, but pin the primary
-            // role to the indigo brand so Material components (buttons, switches,
-            // the nav indicator) match the launcher icon instead of showing a
-            // second, competing accent.
             val dynamic = if (darkTheme) dynamicDarkColorScheme(context)
             else dynamicLightColorScheme(context)
             dynamic.copy(
@@ -130,11 +114,6 @@ fun OndesTheme(
     }
 }
 
-/**
- * Accessor for Ondes tokens, mirroring how [MaterialTheme] exposes its subsystems
- * (e.g. `OndesTheme.colors.brand`). A function and an object can share a name in
- * Kotlin, so `OndesTheme { }` and `OndesTheme.colors` coexist.
- */
 object OndesTheme {
     val colors: OndesColors
         @Composable @ReadOnlyComposable get() = LocalOndesColors.current

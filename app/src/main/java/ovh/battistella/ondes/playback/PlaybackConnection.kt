@@ -41,22 +41,11 @@ data class PlayerUiState(
     val hasPrevious: Boolean = false,
 )
 
-/**
- * The minimal now-playing signal an episode *list* needs: which episode is loaded
- * and whether it's playing. Derived from [PlayerUiState] with the 2 Hz position
- * updates deliberately dropped (via `distinctUntilChanged`) so a list doesn't
- * recompose on every progress tick during playback (opt. 3).
- */
 data class NowPlaying(
     val episodeId: String? = null,
     val isPlaying: Boolean = false,
 )
 
-/**
- * App-wide bridge to [PlaybackService]. Connects a [MediaController] and
- * exposes a single [PlayerUiState] flow that any screen (mini-player, now
- * playing) can observe.
- */
 @Singleton
 class PlaybackConnection @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -70,15 +59,11 @@ class PlaybackConnection @Inject constructor(
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
 
-    /** Latest settings snapshot, kept current so playback honours live changes. */
     @Volatile private var settings: OndesSettings = OndesSettings()
 
-    /** Smooth-progress ticker; only alive while something is actually playing. */
     private var tickerJob: Job? = null
 
     private fun connect() {
-        // Idempotent: never open a second controller while one is live or a
-        // connection is already in flight.
         if (controller != null || controllerFuture != null) return
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         val future = MediaController.Builder(context, token)
@@ -93,9 +78,6 @@ class PlaybackConnection @Inject constructor(
                 _state.value = _state.value.copy(isConnected = true)
                 syncFromController()
             } catch (t: Throwable) {
-                // Session connection failed — reset so the next command retries
-                // instead of the app crashing on an unguarded future.get()
-                // (issue P1-1).
                 controller = null
                 controllerFuture = null
                 _state.value = _state.value.copy(isConnected = false)
@@ -103,12 +85,6 @@ class PlaybackConnection @Inject constructor(
         }, MoreExecutors.directExecutor())
     }
 
-    /**
-     * Return the live controller, or trigger a (lazy) reconnect and return null.
-     * The service can be torn down while the app process survives — without this
-     * the singleton kept a dead controller forever and every transport button
-     * silently no-oped (issue P0-4).
-     */
     private fun requireController(): MediaController? {
         val c = controller
         if (c == null) connect()
@@ -127,8 +103,6 @@ class PlaybackConnection @Inject constructor(
 
     private val controllerListener = object : MediaController.Listener {
         override fun onDisconnected(controller: MediaController) {
-            // The service died: drop the stale controller so the next command
-            // reconnects to a fresh session.
             releaseController()
         }
     }
@@ -140,13 +114,7 @@ class PlaybackConnection @Inject constructor(
     }
 
     init {
-        // Declared after the listeners so both are initialised before connect()
-        // wires them into the controller during construction.
         scope.launch { settingsRepository.settings.collect { settings = it } }
-        // Gate the 500ms position ticker on whether anyone is actually observing
-        // the player state. When the app is backgrounded every screen's
-        // WhileSubscribed lapses, so without this the ticker would keep waking the
-        // main thread twice a second for the whole playback session (opt. 3).
         scope.launch {
             _state.subscriptionCount.collect { count ->
                 if (count > 0) {
@@ -166,7 +134,6 @@ class PlaybackConnection @Inject constructor(
             while (isActive) {
                 val c = controller ?: break
                 if (!c.isPlaying) break
-                // Nobody watching → stop ticking (restarted when a collector returns).
                 if (_state.subscriptionCount.value == 0) break
                 _state.value = _state.value.copy(
                     positionMs = c.currentPosition.coerceAtLeast(0),
@@ -180,8 +147,6 @@ class PlaybackConnection @Inject constructor(
 
     private fun syncFromController() {
         val c = controller ?: return
-        // Run the smooth-progress ticker only while playing AND observed, so the
-        // main thread isn't woken every 500ms for the process's whole life.
         if (c.isPlaying && _state.subscriptionCount.value > 0) startPositionTicker()
         else { tickerJob?.cancel(); tickerJob = null }
         val item = c.currentMediaItem
@@ -200,20 +165,8 @@ class PlaybackConnection @Inject constructor(
         )
     }
 
-    /**
-     * Play [episode], resuming from its saved position. When auto-advance is on
-     * and a (newest-first) [queue] is supplied, the unplayed episodes newer than
-     * it are loaded too so playback flows continuously into the next one — see
-     * [PlaybackTransitions.followOn].
-     *
-     * Resolving the items touches the filesystem (does this episode have a
-     * downloaded file?) once per episode, so it happens off the main thread —
-     * the whole queue used to be stat'ed inline on the click that started
-     * playback (issue P2).
-     */
     fun play(episode: EpisodeEntity, queue: List<EpisodeEntity> = emptyList()) {
         val c = requireController() ?: return
-        // If this episode is already loaded, just resume.
         if (c.currentMediaItem?.mediaId == episode.id) {
             c.resume()
             return
@@ -226,10 +179,6 @@ class PlaybackConnection @Inject constructor(
         loadAndPlay(episode, followOn)
     }
 
-    /**
-     * Play the user-curated queue starting at [startIndex], loading that episode
-     * and everything after it into the player so it flows through the queue.
-     */
     fun playFromQueue(queue: List<EpisodeEntity>, startIndex: Int) {
         val c = requireController() ?: return
         val start = queue.getOrNull(startIndex) ?: return
@@ -240,12 +189,6 @@ class PlaybackConnection @Inject constructor(
         loadAndPlay(start, queue.drop(startIndex + 1))
     }
 
-    /**
-     * Resolve [head] and [followOn] into media items off the main thread, then
-     * start playback. [head] is pinned to index 0 so the start position always
-     * refers to it; an unplayable head (no download, no safe http URL) is a
-     * no-op rather than an empty/broken item handed to the player.
-     */
     private fun loadAndPlay(head: EpisodeEntity, followOn: List<EpisodeEntity>) {
         scope.launch {
             val resolved = withContext(Dispatchers.IO) {
@@ -254,11 +197,8 @@ class PlaybackConnection @Inject constructor(
                 }
             } ?: return@launch
             val c = controller ?: return@launch
-            // A finished episode can still carry its end-of-file position (the
-            // service saves the playhead as playback stops at the end), so
-            // replaying it must start fresh rather than instantly ending again.
             val startMs = PlaybackTransitions.resumeTargetMs(head.positionMs, head.isFinished) ?: 0L
-            c.setMediaItems(resolved, /* startIndex = */ 0, startMs)
+            c.setMediaItems(resolved, 0, startMs)
             c.playbackParameters = PlaybackParameters(settings.defaultSpeed)
             applySpeedFor(head.feedUrl)
             c.prepare()
@@ -266,7 +206,6 @@ class PlaybackConnection @Inject constructor(
         }
     }
 
-    /** Resolve the per-podcast speed override (falling back to the global default). */
     private fun applySpeedFor(feedUrl: String) {
         scope.launch {
             val speed = repository.getPodcastOnce(feedUrl)?.overrideSpeed ?: settings.defaultSpeed
@@ -281,12 +220,6 @@ class PlaybackConnection @Inject constructor(
 
     fun pause() { controller?.pause() }
 
-    /**
-     * Mark the currently-loaded episode played and drop it from the Up-Next
-     * queue. Used by the end-of-episode sleep timer, which pauses a beat before
-     * the true end — without this the episode would never be marked finished and
-     * would linger in the queue and "Continue listening" (issue P1-4).
-     */
     fun finishCurrentEpisode() {
         val id = controller?.currentMediaItem?.mediaId?.takeIf { it.isNotBlank() } ?: return
         scope.launch {
@@ -297,13 +230,11 @@ class PlaybackConnection @Inject constructor(
 
     fun seekTo(positionMs: Long) { controller?.seekTo(positionMs) }
 
-    /** Skip backward by the user-configured interval. */
     fun seekBack() {
         val c = requireController() ?: return
         c.seekTo((c.currentPosition - settings.skipBackMs).coerceAtLeast(0))
     }
 
-    /** Skip forward by the user-configured interval. */
     fun seekForward() {
         val c = requireController() ?: return
         val target = c.currentPosition + settings.skipForwardMs
@@ -311,25 +242,16 @@ class PlaybackConnection @Inject constructor(
         c.seekTo(if (duration > 0) target.coerceAtMost(duration) else target)
     }
 
-    /** Advance to the next loaded item (e.g. the next queued episode). */
     fun next() {
         val c = requireController() ?: return
         if (c.hasNextMediaItem()) c.seekToNextMediaItem()
     }
 
-    /** Go to the previous loaded item, or restart the current one. */
     fun previous() {
         val c = requireController() ?: return
         if (c.hasPreviousMediaItem()) c.seekToPreviousMediaItem() else c.seekTo(0)
     }
 
-    /**
-     * Change the playback speed of what's playing now, and remember it where the
-     * user would expect: on the podcast when that podcast has its own speed
-     * override, otherwise as the global default. Previously an in-player nudge
-     * always rewrote the global default — silently retuning every *other* show
-     * even though this one was set to ignore it (issue P2).
-     */
     fun setSpeed(speed: Float) {
         controller?.playbackParameters = PlaybackParameters(speed)
         val episodeId = _state.value.currentEpisodeId
@@ -351,12 +273,6 @@ class PlaybackConnection @Inject constructor(
         }
     }
 
-    /**
-     * Resume the already-loaded item. After a playback error the player parks in
-     * [Player.STATE_IDLE]; calling [MediaController.play] alone then does nothing
-     * and the play button looks dead — re-[prepare] first so it can recover
-     * (issue P1-5).
-     */
     private fun MediaController.resume() {
         if (playbackState == Player.STATE_IDLE) prepare()
         play()

@@ -23,11 +23,6 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
-    /**
-     * The dispatcher repositories offload blocking I/O (network, disk, DB) onto.
-     * Injected rather than hard-coded so tests can pin it to a deterministic test
-     * scheduler.
-     */
     @Provides
     @Singleton
     fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
@@ -46,11 +41,6 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): OndesDatabase =
         Room.databaseBuilder(context, OndesDatabase::class.java, "ondes.db")
-            // Real migrations preserve the user's library & listening history
-            // across schema bumps. There is deliberately NO destructive fallback:
-            // it turned a forgotten migration into a silent, total wipe of every
-            // subscription and resume position (issue P1-10). Without it such a
-            // mistake is a loud crash — and MigrationTest catches it in CI first.
             .addMigrations(
                 MIGRATION_1_2,
                 MIGRATION_2_3,
@@ -70,7 +60,6 @@ object AppModule {
     @Provides
     fun provideQueueDao(db: OndesDatabase): QueueDao = db.queueDao()
 
-    /** v2 adds the persistent Up-Next queue table. */
     val MIGRATION_1_2 = object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -82,14 +71,12 @@ object AppModule {
         }
     }
 
-    /** v3 adds a nullable chapters-JSON URL to episodes (Podcasting 2.0 chapters). */
     val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE `episodes` ADD COLUMN `chaptersUrl` TEXT")
         }
     }
 
-    /** v4 adds per-podcast playback-speed override and auto-download flag. */
     val MIGRATION_3_4 = object : Migration(3, 4) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE `podcasts` ADD COLUMN `overrideSpeed` REAL")
@@ -97,7 +84,6 @@ object AppModule {
         }
     }
 
-    /** v5 indexes episodes.downloadState so the Downloads query stops table-scanning. */
     val MIGRATION_4_5 = object : Migration(4, 5) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -107,20 +93,8 @@ object AppModule {
         }
     }
 
-    /**
-     * v6 re-keys episodes on their *feed-scoped* id, adds the "last played"
-     * stamp, and stores the feed's HTTP validators.
-     *
-     * Episode ids move from the bare feed GUID to `feedUrl::guid` (issue P0-7).
-     * GUIDs are only unique within a feed, so two subscriptions that both number
-     * their items `1`, `2`, `3` collided and the second feed's episodes were
-     * dropped by INSERT-IGNORE. The table is rebuilt rather than UPDATEd in
-     * place so the new ids can't transiently collide with old ones mid-statement,
-     * and the queue is re-pointed first, while the old ids are still resolvable.
-     */
     val MIGRATION_5_6 = object : Migration(5, 6) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            // Re-point the queue while `episodes` still holds the old ids.
             db.execSQL(
                 "UPDATE `queue` SET `episodeId` = (" +
                     "SELECT e.`feedUrl` || '::' || e.`id` FROM `episodes` e " +
@@ -147,9 +121,6 @@ object AppModule {
                     "`lastPlayedAt` INTEGER NOT NULL DEFAULT 0, " +
                     "PRIMARY KEY(`id`))"
             )
-            // OR IGNORE: only a feed URL containing the separator could make two
-            // distinct rows map onto one id — keep the first rather than abort
-            // the migration (and, without a destructive fallback, the app).
             db.execSQL(
                 "INSERT OR IGNORE INTO `episodes_new` (" +
                     "`id`, `feedUrl`, `title`, `description`, `audioUrl`, `imageUrl`, " +
@@ -169,20 +140,11 @@ object AppModule {
                 "CREATE INDEX IF NOT EXISTS `index_episodes_downloadState` " +
                     "ON `episodes` (`downloadState`)"
             )
-            // Conditional-GET validators for the feed refresh (opt. 1).
             db.execSQL("ALTER TABLE `podcasts` ADD COLUMN `etag` TEXT")
             db.execSQL("ALTER TABLE `podcasts` ADD COLUMN `lastModified` TEXT")
         }
     }
 
-    /**
-     * v7 remembers, per episode, whether a "new episode" notification still owes
-     * the user an announcement.
-     *
-     * Existing rows default to 0: they are the back catalogue, already seen, and
-     * flagging them would turn the first refresh after an update into a wall of
-     * notifications.
-     */
     val MIGRATION_6_7 = object : Migration(6, 7) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(

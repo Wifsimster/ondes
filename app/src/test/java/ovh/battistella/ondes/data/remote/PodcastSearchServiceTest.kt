@@ -4,13 +4,6 @@ import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/**
- * Guards [PodcastSearchService.distinctByFeedUrl], which keeps the result lists
- * feed-unique. The Search/Discover lists key Compose rows by feedUrl, and a
- * duplicate key crashes the LazyColumn — reproduced by searching "the room" on
- * the French iTunes storefront, where one show is returned under two collection
- * ids sharing a single feed.
- */
 class PodcastSearchServiceTest {
 
     private val service = PodcastSearchService(OkHttpClient())
@@ -32,7 +25,6 @@ class PodcastSearchServiceTest {
             listOf("https://feeds.simplecast.com/aPz9Qkq6", "https://example.com/other"),
             out.map { it.feedUrl },
         )
-        // The first occurrence wins, so ranking/relevance order is preserved.
         assertEquals("The Room A", out.first().title)
     }
 

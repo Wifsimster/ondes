@@ -7,11 +7,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.ByteArrayInputStream
 
-/**
- * Parses a representative feed through the real platform XML pull-parser
- * (Robolectric provides android.util.Xml). Covers channel metadata, duration
- * formats, and the security rule that drops non-http(s) enclosures.
- */
 @RunWith(RobolectricTestRunner::class)
 class RssParserTest {
 
@@ -57,7 +52,6 @@ class RssParserTest {
     @Test
     fun `drops non-http enclosures and keeps playable ones`() {
         val episodes = parse(feed).episodes
-        // The file:// enclosure is rejected; only the http(s) episode survives.
         assertEquals(listOf("guid-1"), episodes.map { it.guid })
         assertEquals("https://cdn.example/1.mp3", episodes.first().audioUrl)
     }
@@ -76,9 +70,6 @@ class RssParserTest {
 
     @Test
     fun `mixed content in a description does not abort the whole feed`() {
-        // A description with a nested tag outside CDATA makes XmlPullParser.nextText()
-        // throw, which previously dropped every episode in the feed. The tolerant
-        // reader must keep parsing (issue P1-7).
         val mixed = """
             <?xml version="1.0" encoding="UTF-8"?>
             <rss>
@@ -101,7 +92,6 @@ class RssParserTest {
 
         val episodes = parse(mixed).episodes
 
-        // Both episodes survive; the feed is not rendered un-subscribable.
         assertEquals(listOf("guid-mixed", "guid-plain"), episodes.map { it.guid })
     }
 }

@@ -9,7 +9,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/** "1:02:03" or "12:34". */
 fun formatTime(ms: Long): String {
     if (ms <= 0) return "0:00"
     val totalSec = ms / 1000
@@ -20,11 +19,6 @@ fun formatTime(ms: Long): String {
     else String.format(Locale.US, "%d:%02d", m, s)
 }
 
-/**
- * Compact duration label, e.g. "1h 02m" or "34 min", in the user's language.
- * The unit letters used to be hardcoded English inside a formatter (issue P2),
- * so a German or Spanish list read "1h 02m" whatever the device language.
- */
 @Composable
 fun durationLabel(ms: Long): String {
     if (ms <= 0) return ""
@@ -35,14 +29,6 @@ fun durationLabel(ms: Long): String {
     else stringResource(R.string.minutes_short, m)
 }
 
-/**
- * Locale-formatted publication date.
- *
- * The formatter is cached per locale: building a [SimpleDateFormat] parses its
- * pattern and loads the locale's symbols, and this runs once per episode row —
- * once per row per recomposition — while scrolling (issue P2). [DateFormat] is
- * not thread-safe, so the cache is per-thread.
- */
 fun formatDate(epochMs: Long): String {
     if (epochMs <= 0) return ""
     return dateFormatter().format(Date(epochMs))
@@ -58,7 +44,6 @@ private fun dateFormatter(): DateFormat {
     return formatter
 }
 
-/** Strip HTML tags from feed descriptions for plain-text display. */
 fun stripHtml(html: String): String =
     html.replace(Regex("<[^>]*>"), " ")
         .replace("&nbsp;", " ")

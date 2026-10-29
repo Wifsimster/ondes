@@ -34,19 +34,16 @@ class MainActivity : ComponentActivity() {
 
     private val mainViewModel: MainViewModel by viewModels()
 
-    // Feed URL to open from a tapped "new episode" notification, if any.
     private var pendingFeedUrl by mutableStateOf<String?>(null)
 
     private val notificationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdgeCompat()
         maybeRequestNotificationPermission()
         pendingFeedUrl = intent?.getStringExtra(NewEpisodeNotifier.EXTRA_OPEN_FEED_URL)
-        // Consume the extra so a config-change recreation (rotation) doesn't
-        // re-read it and push a duplicate podcast onto the back stack (issue P1-15).
         intent?.removeExtra(NewEpisodeNotifier.EXTRA_OPEN_FEED_URL)
         setContent {
             val settings by mainViewModel.settings.collectAsStateWithLifecycle()
@@ -63,7 +60,6 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background,
                 ) {
                     when (showOnboarding) {
-                        // null = preference still loading; show nothing briefly.
                         null -> Unit
                         true -> OnboardingScreen()
                         false -> OndesRoot(
@@ -76,13 +72,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // The activity is singleTop, so a notification tap while it's already running
-    // arrives here rather than recreating it.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.getStringExtra(NewEpisodeNotifier.EXTRA_OPEN_FEED_URL)?.let { pendingFeedUrl = it }
-        // Consumed — don't let it survive to a later recreation and re-fire.
         intent.removeExtra(NewEpisodeNotifier.EXTRA_OPEN_FEED_URL)
     }
 

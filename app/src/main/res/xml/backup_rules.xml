@@ -1,10 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Auto Backup rules for API < 31 (the data_extraction_rules.xml equivalent on
-  newer devices). Excludes every store of user data so nothing leaves the
-  device, honouring the privacy policy, and keeps re-downloadable audio out of
-  the ~25 MB backup quota. Portability is via the in-app OPML / JSON export.
--->
 <full-backup-content>
     <exclude domain="database" path="ondes.db" />
     <exclude domain="file" path="datastore" />

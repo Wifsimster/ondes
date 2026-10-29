@@ -4,35 +4,12 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
-/**
- * Pure, timezone-correct parsing of the date strings found in podcast feeds
- * (RFC-822 for RSS `pubDate`, ISO-8601 for Atom `published`/`updated`).
- *
- * Kept separate and Android-free so the fiddly format matrix can be pinned by
- * host unit tests. Two bugs it exists to prevent (issue P1-6):
- *  - An ISO timestamp ending in a literal `Z` was parsed in the *device's* local
- *    timezone, skewing episode ordering by up to ±14 h. Every formatter here
- *    defaults to UTC, so a zoneless or literal-`Z` timestamp is read as UTC;
- *    formats with a real offset token still honour the offset in the input.
- *  - Millisecond variants (`…ss.SSS…`) matched nothing, sinking those episodes
- *    to `pubDate = 0`; they are covered explicitly below.
- *
- * The RFC-822 day-of-week prefix (`Mon, `) is stripped before matching: with
- * leniency off, a weekday that disagrees with the date made every pattern
- * reject the string, and feeds with a wrong weekday are common enough in the
- * wild that those episodes all sank to `pubDate = 0`. The date itself carries
- * all the information; the weekday is redundant.
- */
 object RssDates {
 
     private val UTC: TimeZone = TimeZone.getTimeZone("UTC")
 
-    /** A leading RFC-822 day name (`Mon, `), which strict parsing would cross-check. */
     private val WEEKDAY_PREFIX = Regex("^[A-Za-z]+,\\s*")
 
-    // Ordered most-specific first. Offset tokens: `Z` (RFC-822 numeric, e.g.
-    // +0000), `zzz` (named), `XX` (+0000), `XXX` (+00:00); `X` variants and the
-    // literal `'Z'`/zoneless forms fall back to the formatter's UTC default.
     private val FORMATS = listOf(
         "dd MMM yyyy HH:mm:ss Z",
         "dd MMM yyyy HH:mm:ss zzz",
@@ -49,16 +26,12 @@ object RssDates {
         "yyyy-MM-dd",
     )
 
-    /** Epoch millis for [raw], or 0 when it is blank or matches no known format. */
     fun parse(raw: String): Long {
         val t = raw.trim().replaceFirst(WEEKDAY_PREFIX, "")
         if (t.isEmpty()) return 0L
         for (pattern in FORMATS) {
             val parsed = runCatching {
                 val sdf = SimpleDateFormat(pattern, Locale.US)
-                // Deterministic: a zoneless / literal-Z timestamp is UTC, not
-                // whatever the device happens to be set to. An explicit offset in
-                // the input still wins, as SimpleDateFormat applies it over this.
                 sdf.timeZone = UTC
                 sdf.isLenient = false
                 sdf.parse(t)?.time

@@ -17,40 +17,17 @@ import ovh.battistella.ondes.data.repository.PodcastRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * The browsable content hierarchy that [PlaybackService] exposes to Android
- * Auto, Wear OS and other `MediaBrowser` clients: a small set of folders
- * (Continue listening / Subscriptions / Downloads), the podcasts under
- * Subscriptions, and the episodes under each podcast.
- *
- * Pulled out of the service so the service is left with just the player +
- * session lifecycle, and the tree's content rules — backed by the repository,
- * built through the shared [MediaItems] factory — live in one focused place.
- * All node ids and the browser allowlist are owned here too.
- */
 @Singleton
 class MediaLibraryTree @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: PodcastRepository,
 ) {
 
-    /**
-     * The browse tree exposes the user's whole library (subscriptions, episode
-     * titles, feed URLs). The service is `exported` so Android Auto / Wear can
-     * reach it, but that also lets any installed app bind — so the content tree
-     * is gated to our own UI, the platform, and a small allowlist of known media
-     * browsers. Untrusted callers may still connect (so transport controls work)
-     * but get nothing back from the library callbacks.
-     */
     fun isCallerTrusted(caller: MediaSession.ControllerInfo): Boolean {
         if (caller.uid == Process.myUid() || caller.uid == Process.SYSTEM_UID) return true
         return caller.packageName in TRUSTED_BROWSER_PACKAGES
     }
 
-    /**
-     * The browse root. Android Auto asks for a dedicated "recent" root to
-     * populate its resume / now-playing card; everything else gets the full root.
-     */
     fun root(isRecent: Boolean): MediaItem =
         MediaItems.folder(if (isRecent) RECENT_ROOT_ID else ROOT_ID, appName())
 
@@ -70,7 +47,6 @@ class MediaLibraryTree @Inject constructor(
             )
             .build()
 
-    /** Resolve a single browse node by its media id, or null if unknown. */
     suspend fun item(mediaId: String): MediaItem? = when (mediaId) {
         ROOT_ID -> root(isRecent = false)
         RECENT_ROOT_ID -> root(isRecent = true)
@@ -79,23 +55,18 @@ class MediaLibraryTree @Inject constructor(
             MediaItems.folder(SUBSCRIPTIONS_ID, context.getString(R.string.subscriptions_title))
         DOWNLOADS_ID -> MediaItems.folder(DOWNLOADS_ID, context.getString(R.string.nav_downloads))
         else -> when {
-            // Indexed lookup by feed URL (the id is the URL under a prefix) rather
-            // than loading every subscription and linear-scanning it (opt. 9).
             mediaId.startsWith(PODCAST_PREFIX) ->
                 repository.getPodcastOnce(mediaId.removePrefix(PODCAST_PREFIX))?.let(::podcastItem)
             else -> repository.getEpisode(mediaId)?.let(MediaItems::browsable)
         }
     }
 
-    /** The children of a browse node, in display order. */
     suspend fun children(parentId: String): List<MediaItem> = when (parentId) {
         ROOT_ID -> listOf(
             MediaItems.folder(CONTINUE_ID, context.getString(R.string.continue_listening)),
             MediaItems.folder(SUBSCRIPTIONS_ID, context.getString(R.string.subscriptions_title)),
             MediaItems.folder(DOWNLOADS_ID, context.getString(R.string.nav_downloads)),
         )
-        // Resume card: the single most recent in-progress episode, or the
-        // newest episode if nothing is part-way through.
         RECENT_ROOT_ID -> listOfNotNull(
             (repository.getInProgressOnce().firstOrNull()
                 ?: repository.getLatestOnce().firstOrNull())
@@ -111,18 +82,11 @@ class MediaLibraryTree @Inject constructor(
         }
     }.also { Log.i(TAG, "children: parent='$parentId' -> ${it.size} items") }
 
-    /**
-     * Browser clients (Android Auto, notifications) hand us items that carry only
-     * a `mediaId`. Resolve each one back to a fully-formed, playable [MediaItem]
-     * with its audio URI and metadata, dropping any that have no playable source.
-     */
     suspend fun resolve(items: List<MediaItem>): List<MediaItem> =
         resolveIndexed(items).map { it.second }
 
-    /** [resolve], keeping each playable item's index in the requested list. */
     private suspend fun resolveIndexed(items: List<MediaItem>): List<Pair<Int, MediaItem>> {
         val resolved = items.mapIndexedNotNull { index, item ->
-            // Already complete (has a URI) — keep as-is.
             if (item.localConfiguration != null) return@mapIndexedNotNull index to item
             repository.getEpisode(item.mediaId)?.let(MediaItems::playable)?.let { index to it }
         }
@@ -130,11 +94,6 @@ class MediaLibraryTree @Inject constructor(
         return resolved
     }
 
-    /**
-     * Resolve a "set media items" request from a browser, defaulting the start
-     * position to the episode's saved resume point when the caller didn't pin one
-     * (e.g. tapping an episode in the car).
-     */
     suspend fun setMediaItems(
         items: List<MediaItem>,
         startIndex: Int,
@@ -143,13 +102,9 @@ class MediaLibraryTree @Inject constructor(
         val indexed = resolveIndexed(items)
         if (indexed.isEmpty()) return MediaItemsWithStartPosition(emptyList(), 0, 0L)
         val resolved = indexed.map { it.second }
-        // startIndex refers to the *requested* list; unplayable items dropped
-        // before it would otherwise shift it onto a different episode. Start at
-        // the chosen item, or the first playable one after it.
         val requested = if (startIndex == C.INDEX_UNSET) 0 else startIndex
         val index = indexed.indexOfFirst { it.first >= requested }
             .takeIf { it >= 0 } ?: resolved.lastIndex
-        // A pinned position only belongs to the item it was pinned for.
         val pinnedStillValid = indexed[index].first == requested
         val position = if (startPositionMs != C.TIME_UNSET && pinnedStillValid) {
             startPositionMs
@@ -160,16 +115,6 @@ class MediaLibraryTree @Inject constructor(
         return MediaItemsWithStartPosition(resolved, index, position)
     }
 
-    /**
-     * What the session should load when the system asks it to resume playback
-     * after the process was killed — a Bluetooth or headset play button, Android
-     * Auto's resume card, a media notification restored by the system.
-     *
-     * Without an answer here the play button simply did nothing until the user
-     * opened the app first (issue P1-2). Resumption starts from the episode the
-     * user listened to most recently, at its saved position, with the rest of the
-     * Up-Next queue behind it.
-     */
     suspend fun resumption(): MediaItemsWithStartPosition {
         val queue = repository.getQueueOnce()
         val mostRecent = repository.getInProgressOnce().firstOrNull()
@@ -177,9 +122,6 @@ class MediaLibraryTree @Inject constructor(
             null -> queue
             else -> listOf(mostRecent) + queue.filterNot { it.id == mostRecent.id }
         }
-        // Keep each episode next to its resolved item so the start position is
-        // read off the episode that actually ends up first (an unplayable head —
-        // deleted download, unsafe URL — is dropped).
         val playable = ordered.mapNotNull { episode ->
             MediaItems.playable(episode)?.let { episode to it }
         }
@@ -188,7 +130,7 @@ class MediaLibraryTree @Inject constructor(
         Log.i(TAG, "resumption: ${playable.size} items, head='${head.first.title}'")
         return MediaItemsWithStartPosition(
             playable.map { it.second },
-            /* startIndex = */ 0,
+            0,
             head.first.positionMs.coerceAtLeast(0),
         )
     }
@@ -199,10 +141,8 @@ class MediaLibraryTree @Inject constructor(
         MediaItems.podcast(PODCAST_PREFIX + podcast.feedUrl, podcast.title, podcast.imageUrl)
 
     companion object {
-        /** Logcat tag for Android Auto / MediaBrowser diagnostics: `adb logcat -s OndesAuto`. */
         private const val TAG = "OndesAuto"
 
-        // Browse-tree node ids.
         private const val ROOT_ID = "[root]"
         private const val RECENT_ROOT_ID = "[recent]"
         private const val CONTINUE_ID = "[continue]"
@@ -210,19 +150,14 @@ class MediaLibraryTree @Inject constructor(
         private const val DOWNLOADS_ID = "[downloads]"
         private const val PODCAST_PREFIX = "[podcast]"
 
-        /**
-         * Packages allowed to browse the media library tree, beyond callers that
-         * already share our uid or the system uid. Covers Android Auto, the
-         * Assistant, Wear OS and the platform's media controls.
-         */
         private val TRUSTED_BROWSER_PACKAGES = setOf(
-            "com.google.android.projection.gearhead", // Android Auto
-            "com.google.android.autosimulator",       // Android Auto head-unit simulator
-            "com.google.android.carassistant",        // Automotive assistant
-            "com.google.android.googlequicksearchbox", // Google Assistant
-            "com.google.android.wearable.app",        // Wear OS companion
-            "com.android.systemui",                   // System media controls
-            "com.google.android.bluetooth",           // Bluetooth media controls
+            "com.google.android.projection.gearhead",
+            "com.google.android.autosimulator",
+            "com.google.android.carassistant",
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.wearable.app",
+            "com.android.systemui",
+            "com.google.android.bluetooth",
         )
     }
 }

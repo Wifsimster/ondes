@@ -19,7 +19,6 @@ class MainViewModel @Inject constructor(
     val settings: StateFlow<OndesSettings> = settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, OndesSettings())
 
-    /** null while the preference is still loading, so we don't flash onboarding. */
     val showOnboarding: StateFlow<Boolean?> = settingsRepository.settings
         .map { !it.onboardingDone }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
