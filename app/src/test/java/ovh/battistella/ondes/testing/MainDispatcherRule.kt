@@ -9,11 +9,6 @@ import kotlinx.coroutines.test.setMain
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
 
-/**
- * Swaps `Dispatchers.Main` (used by every ViewModel's `viewModelScope`) for a
- * [TestDispatcher] for the duration of a test, so coroutines launched on the
- * main dispatcher are driven by the test scheduler instead of a real looper.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRule(
     val dispatcher: TestDispatcher = StandardTestDispatcher(),

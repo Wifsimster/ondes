@@ -60,7 +60,6 @@ fun SearchScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // Open the show after a successful paste-a-URL subscribe.
     LaunchedEffect(Unit) {
         viewModel.openPodcast.collect(onOpenPodcast)
     }
@@ -122,7 +121,6 @@ fun SearchScreen(
                 onAction = viewModel::search,
             )
 
-            // No active search → propose top shows the user can browse by theme.
             state.query.isBlank() -> BrowseByTheme(
                 state = state,
                 onSelectTheme = viewModel::selectTheme,
@@ -139,11 +137,6 @@ fun SearchScreen(
     }
 }
 
-/**
- * The Discover landing content: a strip of theme chips and, below it, the top
- * podcasts for the picked theme — a ready-made proposition so people can find a
- * great show without knowing its name.
- */
 @Composable
 private fun BrowseByTheme(
     state: SearchUiState,
@@ -211,7 +204,6 @@ private fun BrowseByTheme(
     }
 }
 
-/** A single podcast result row with artwork, title/author and a subscribe action. */
 @Composable
 private fun PodcastResultRow(
     result: PodcastSearchResult,

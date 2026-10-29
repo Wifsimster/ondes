@@ -50,7 +50,6 @@ class QueueViewModelTest {
         if (::db.isInitialized) db.close()
     }
 
-    /** Seed three queued episodes ep-1..ep-3 in order. */
     private suspend fun seedQueue() {
         listOf("ep-1", "ep-2", "ep-3").forEachIndexed { i, id ->
             db.episodeDao().upsertAll(listOf(TestSupport.episode(id = id, title = "E$i")))
@@ -81,11 +80,6 @@ class QueueViewModelTest {
         assertEquals(listOf("ep-2", "ep-1", "ep-3"), db.queueDao().getOrderedIds())
     }
 
-    /**
-     * Two moves in quick succession both land: the second used to read a list
-     * the database hadn't caught up with yet and silently undo the first
-     * (issue P2).
-     */
     @Test
     fun `consecutive moves both apply`() = runTest(mainDispatcher.dispatcher) {
         val vm = build()
@@ -93,7 +87,6 @@ class QueueViewModelTest {
         backgroundScope.launch { vm.queue.collect {} }
         advanceUntilIdle()
 
-        // ep-1 walks from the top to the bottom, one tap after another.
         vm.moveDown(0)
         vm.moveDown(1)
         advanceUntilIdle()
@@ -118,7 +111,6 @@ class QueueViewModelTest {
 
         assertEquals(listOf("ep-1", "ep-3"), db.queueDao().getOrderedIds())
         assertEquals(1, messages.size)
-        // Undo restores the previous order (ep-2 back in the middle).
         messages.first().onAction!!.invoke()
         advanceUntilIdle()
         assertEquals(listOf("ep-1", "ep-2", "ep-3"), db.queueDao().getOrderedIds())
@@ -133,11 +125,9 @@ class QueueViewModelTest {
 
         playerFlow.value = PlayerUiState(currentEpisodeId = "ep-1", isPlaying = true, positionMs = 1_000)
         advanceUntilIdle()
-        // Same episode + play state, only the position moved: the 2 Hz ticker.
         playerFlow.value = PlayerUiState(currentEpisodeId = "ep-1", isPlaying = true, positionMs = 9_000)
         advanceUntilIdle()
 
-        // The position-only change must not produce a second now-playing emission.
         assertEquals(listOf(NowPlaying(), NowPlaying("ep-1", isPlaying = true)), seen)
     }
 

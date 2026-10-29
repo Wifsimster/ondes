@@ -5,7 +5,6 @@ import ovh.battistella.ondes.common.SnackbarController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
-/** Exposes the singleton [SnackbarController] to the root composable. */
 @HiltViewModel
 class OndesRootViewModel @Inject constructor(
     val snackbar: SnackbarController,

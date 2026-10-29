@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Ondes</string>
 
-    <!-- Bottom navigation -->
     <string name="nav_home">Home</string>
     <string name="nav_queue">Queue</string>
     <string name="nav_library">Library</string>
@@ -9,7 +8,6 @@
     <string name="nav_downloads">Downloads</string>
     <string name="nav_settings">Settings</string>
 
-    <!-- Common -->
     <string name="subscribe">Subscribe</string>
     <string name="subscribed_added">Added</string>
     <string name="subscribed_label">Subscribed</string>
@@ -25,7 +23,6 @@
     <string name="clear_queue_title">Clear queue?</string>
     <string name="clear_queue_message">This removes every episode from your queue.</string>
 
-    <!-- Episode row -->
     <string name="played">Played</string>
     <string name="mark_as_played">Mark as played</string>
     <string name="mark_as_unplayed">Mark as unplayed</string>
@@ -40,7 +37,6 @@
     <string name="add_to_queue">Add to queue</string>
     <string name="time_left">%1$s left</string>
 
-    <!-- Home -->
     <string name="loading_podcasts">Loading your podcasts…</string>
     <string name="home_welcome_title">Welcome to Ondes</string>
     <string name="home_welcome_message">Subscribe to a few shows and your latest episodes will show up right here.</string>
@@ -48,7 +44,6 @@
     <string name="continue_listening">Continue listening</string>
     <string name="latest_episodes">Latest episodes</string>
 
-    <!-- Library -->
     <string name="library_empty_title">Your library\'s empty</string>
     <string name="library_empty_message">Subscribe to shows and they\'ll live here, ready when you are. Let\'s get listening. 🎧</string>
     <string name="browse_podcasts">Browse podcasts</string>
@@ -63,11 +58,9 @@
         <item quantity="other">%1$d unplayed</item>
     </plurals>
 
-    <!-- Downloads -->
     <string name="downloads_empty_title">Nothing downloaded yet</string>
     <string name="downloads_empty_message">Tap the download icon on any episode to keep it offline — perfect for flights and dead zones.</string>
 
-    <!-- Search / Discover -->
     <string name="search_placeholder">Search podcasts or paste a feed URL</string>
     <string name="search_no_luck_title">No luck there</string>
     <string name="try_again">Try again</string>
@@ -84,7 +77,6 @@
     <string name="search_failed">Couldn\'t search. Check your connection and try again. 🎧</string>
     <string name="clear_search">Clear search</string>
 
-    <!-- Podcast detail -->
     <string name="artwork_for">Artwork for %1$s</string>
     <string name="show_notes">Show notes</string>
     <string name="show_more">Show more</string>
@@ -94,7 +86,6 @@
         <item quantity="other">%1$d episodes</item>
     </plurals>
 
-    <!-- Player -->
     <string name="now_playing">Now Playing</string>
     <string name="back_10">Back 10 seconds</string>
     <string name="forward_30">Forward 30 seconds</string>
@@ -117,7 +108,6 @@
     <string name="chapters">Chapters</string>
     <string name="chapter">Chapter</string>
 
-    <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_playback">Playback</string>
     <string name="skip_back">Skip back</string>
@@ -155,7 +145,6 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
 
-    <!-- Settings: data ownership (OPML / backup) -->
     <string name="settings_data">Your data</string>
     <string name="export_opml_title">Export subscriptions (OPML)</string>
     <string name="export_opml_subtitle">Save your feeds to a standard OPML file</string>
@@ -171,7 +160,6 @@
     <string name="restore_done">Restore complete</string>
     <string name="data_op_failed">Something went wrong</string>
 
-    <!-- Queue -->
     <string name="queue_title">Queue</string>
     <string name="queue_empty_title">Your queue is empty</string>
     <string name="queue_empty_message">Add episodes with \"Play next\" or \"Add to queue\" and they\'ll line up here.</string>
@@ -180,10 +168,8 @@
     <string name="move_down">Move down</string>
     <string name="remove">Remove</string>
 
-    <!-- Android Auto / browse tree -->
     <string name="subscriptions_title">Subscriptions</string>
 
-    <!-- New-episode notifications -->
     <string name="notif_channel_name">New episodes</string>
     <string name="notif_channel_desc">Alerts when your subscriptions publish new episodes</string>
     <plurals name="new_episodes_count">
@@ -193,29 +179,23 @@
     <string name="notif_more">+%1$d more</string>
     <string name="notif_podcast_line">%1$s: %2$s</string>
 
-    <!-- Per-podcast playback profile (#7) -->
     <string name="playback_speed">Playback speed</string>
     <string name="speed_default">Default</string>
 
-    <!-- Auto-download (#8) -->
     <string name="auto_download_title">Auto-download new episodes</string>
     <string name="auto_download_subtitle">Keep new episodes ready offline</string>
 
-    <!-- Episode filter (#10) -->
     <string name="filter_episodes">Filter episodes</string>
     <string name="delete_download">Delete download</string>
 
-    <!-- Onboarding (#9) -->
     <string name="onboarding_title">Let\'s tune your feed 🎧</string>
     <string name="onboarding_subtitle">Pick a few topics and we\'ll line up some great shows for you.</string>
     <string name="onboarding_continue">Continue</string>
     <string name="skip">Skip</string>
-    <!-- Onboarding: propose shows from picked themes -->
     <string name="onboarding_proposals_title">Shows we think you’ll like</string>
     <string name="onboarding_proposals_subtitle">Tap the ones you want — we’ll subscribe to those.</string>
     <string name="onboarding_proposals_error">We couldn’t load suggestions right now. Check your connection and try again. 🎧</string>
     <string name="onboarding_subscribe_selected">Subscribe &amp; finish</string>
-    <!-- Library: multi-select unsubscribe -->
     <string name="unsubscribe_selected">Unsubscribe</string>
     <string name="unsubscribe_confirm_title">Unsubscribe podcasts?</string>
     <plurals name="selected_count">

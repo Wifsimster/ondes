@@ -87,7 +87,6 @@ fun PodcastScreen(
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
 
     Scaffold(
-        // Clear a landscape side-notch so the episode list isn't drawn under it.
         contentWindowInsets = ScaffoldDefaults.contentWindowInsets.union(WindowInsets.displayCutout),
         topBar = {
             TopAppBar(
@@ -134,9 +133,6 @@ fun PodcastScreen(
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(
-                // Clear whichever is taller: this screen's own bottom inset or the
-                // root's (which includes the mini-player). Both already count the
-                // nav bar, so take the max rather than summing them (issue P1-16).
                 bottom = maxOf(
                     padding.calculateBottomPadding(),
                     contentPadding.calculateBottomPadding(),
@@ -278,12 +274,6 @@ fun PodcastScreen(
                 HorizontalDivider(Modifier.padding(start = OndesTheme.spacing.lg))
             }
 
-            // Reaching the end of the loaded page asks for the next one, so a
-            // long back catalogue streams in as the user scrolls rather than
-            // being read and diffed in full up front (opt. 7).
-            // Keyed on the *unfiltered* page: with "unplayed only" on, the filtered
-            // list is shorter than the feed forever (the spinner never went away)
-            // and could stay the same size across a page (paging stalled).
             if (query.isBlank() && episodes.size < episodeCount) {
                 item(key = "load-more") {
                     LaunchedEffect(episodes.size) { viewModel.loadMore() }

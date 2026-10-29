@@ -23,16 +23,8 @@ import ovh.battistella.ondes.playback.PlaybackConnection
 import ovh.battistella.ondes.playback.PlayerUiState
 import java.util.concurrent.Executor
 
-/**
- * Shared test scaffolding: a real in-memory Room database wired into a real
- * [PodcastRepository] (so DAO queries are exercised for real) with a mocked
- * network layer, plus entity/feed fixtures and helpers for the service-bound
- * collaborators we never want to actually start in a host-JVM test.
- */
 object TestSupport {
 
-    /** A synchronous executor so Room runs queries on the calling thread — keeps
-     *  `runTest` deterministic with no real background threads. */
     private val directExecutor = Executor { it.run() }
 
     fun inMemoryDb(): OndesDatabase {
@@ -44,7 +36,6 @@ object TestSupport {
             .build()
     }
 
-    /** A real repository over [db], with [rss] and [search] mocked (no network). */
     fun repository(
         db: OndesDatabase,
         io: CoroutineDispatcher,
@@ -61,18 +52,11 @@ object TestSupport {
         ioDispatcher = io,
     )
 
-    /**
-     * A relaxed [PlaybackConnection] mock with a settable [PlayerUiState] flow.
-     * The real connection binds a MediaController to the playback service, which
-     * can't run on a host JVM, so it is always faked.
-     */
     fun mockConnection(
         stateFlow: MutableStateFlow<PlayerUiState> = MutableStateFlow(PlayerUiState()),
     ): PlaybackConnection = mockk(relaxed = true) {
         every { state } returns stateFlow
     }
-
-    // --- fixtures ---
 
     fun parsedFeed(
         title: String = "Test Show",
@@ -87,7 +71,6 @@ object TestSupport {
         episodes = episodes,
     )
 
-    /** A fetched-and-changed feed, as [RssParser.fetch] returns it. */
     fun feedFetch(
         feed: ParsedFeed = parsedFeed(),
         etag: String? = null,

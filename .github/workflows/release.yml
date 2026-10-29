@@ -1,8 +1,5 @@
 name: Release
 
-# Runs semantic-release on every push to main: analyzes Conventional Commits,
-# computes the next semver, bumps VERSION_NAME in gradle.properties, builds the
-# release APK, creates the GitHub release + tag, and attaches the APK.
 on:
   push:
     branches: [main]
@@ -13,8 +10,6 @@ permissions:
   issues: write
   pull-requests: write
 
-# Run JavaScript-based actions on Node.js 24 (the current LTS runtime) rather
-# than the deprecated Node 20.
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 

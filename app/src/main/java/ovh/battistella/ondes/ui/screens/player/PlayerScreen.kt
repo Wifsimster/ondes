@@ -122,9 +122,6 @@ fun PlayerScreen(
     )
 
     if (landscape) {
-        // Side-by-side so a full-width square artwork doesn't push the controls
-        // off-screen: artwork is bounded by the (short) landscape height on the
-        // left, the controls scroll independently on the right.
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -134,8 +131,6 @@ fun PlayerScreen(
                 .padding(horizontal = OndesTheme.spacing.xl),
         ) {
             NowPlayingTopBar(onClose = onClose, onStop = { viewModel.stop(); onClose() })
-            // weight(1f) so the Row takes the height left below the top bar rather
-            // than the full column height (which would overflow and clip).
             Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 PodcastArtwork(
                     url = artworkUrl,
@@ -178,7 +173,6 @@ fun PlayerScreen(
     }
 }
 
-/** Close / "Now playing" / Stop header, shared by both orientations. */
 @Composable
 private fun NowPlayingTopBar(onClose: () -> Unit, onStop: () -> Unit) {
     Row(
@@ -197,7 +191,6 @@ private fun NowPlayingTopBar(onClose: () -> Unit, onStop: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        // Stop clears the episode and dismisses both the player and mini-player.
         IconButton(onClick = onStop) {
             Icon(
                 Icons.Rounded.Stop,
@@ -207,12 +200,6 @@ private fun NowPlayingTopBar(onClose: () -> Unit, onStop: () -> Unit) {
     }
 }
 
-/**
- * Title, scrubber, transport and secondary controls plus show notes — the part
- * that lives below the artwork in portrait and beside it in landscape. The
- * caller supplies the [modifier] (and thus the scroll container) so the block
- * scrolls with the artwork in portrait but independently of it in landscape.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlayerControls(
@@ -230,7 +217,6 @@ private fun PlayerControls(
     var showChapters by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
 
-    // Local scrub state so the thumb tracks the finger without fighting ticks.
     var scrubbing by remember { mutableStateOf(false) }
     var scrubValue by remember { mutableStateOf(0f) }
 
@@ -266,8 +252,6 @@ private fun PlayerControls(
             },
             valueRange = 0f..maxValue,
             enabled = duration > 0,
-            // The played portion ripples while playing and flattens on pause —
-            // the "ondes" of the name, doubling as a playback-state cue.
             track = { sliderState ->
                 WavySliderTrack(
                     sliderState = sliderState,
@@ -501,7 +485,6 @@ private fun ChaptersSheet(
     onSelect: (Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // The active chapter is the last one whose start time is at or before now.
     val currentIndex = chapters.indexOfLast { it.startMs <= currentPositionMs }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Text(
@@ -605,7 +588,6 @@ private fun QueueSheet(
     }
 }
 
-/** Pick the closest matching rewind glyph; fall back to a plain replay icon. */
 private fun skipBackIcon(seconds: Int) = when (seconds) {
     5 -> Icons.Rounded.Replay5
     10 -> Icons.Rounded.Replay10
@@ -613,7 +595,6 @@ private fun skipBackIcon(seconds: Int) = when (seconds) {
     else -> Icons.Rounded.Replay
 }
 
-/** Pick the closest matching fast-forward glyph; fall back to a plain forward icon. */
 private fun skipForwardIcon(seconds: Int) = when (seconds) {
     5 -> Icons.Rounded.Forward5
     10 -> Icons.Rounded.Forward10

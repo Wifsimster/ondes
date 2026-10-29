@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** How the subscriptions grid is ordered. */
 enum class LibrarySort { RECENT, ALPHABETICAL, UNPLAYED }
 
 @HiltViewModel
@@ -30,8 +29,6 @@ class LibraryViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
-    // Restored from saved state: the chosen order used to reset to RECENT on
-    // every rotation and every restore from background (issue P2).
     private val _sort = MutableStateFlow(
         savedStateHandle.get<String>(KEY_SORT)
             ?.let { name -> runCatching { LibrarySort.valueOf(name) }.getOrNull() }
@@ -39,13 +36,11 @@ class LibraryViewModel @Inject constructor(
     )
     val sort: StateFlow<LibrarySort> = _sort.asStateFlow()
 
-    /** feedUrls currently picked in multi-select mode (empty = not selecting). */
     private val _selectedFeedUrls = MutableStateFlow<Set<String>>(emptySet())
     val selectedFeedUrls: StateFlow<Set<String>> = _selectedFeedUrls.asStateFlow()
 
     val subscriptions: StateFlow<List<PodcastWithCount>> =
         combine(repository.observeSubscriptionsWithCounts(), _sort) { items, sort ->
-            // Defensive dedupe so the feedUrl-keyed grid can never crash on a dup.
             val unique = items.distinctBy { it.podcast.feedUrl }
             when (sort) {
                 LibrarySort.ALPHABETICAL ->
@@ -65,9 +60,6 @@ class LibraryViewModel @Inject constructor(
         savedStateHandle[KEY_SORT] = sort.name
     }
 
-    // --- multi-select ---
-
-    /** Begin selection mode with [feedUrl] picked (typically from a long-press). */
     fun startSelection(feedUrl: String) {
         _selectedFeedUrls.value = setOf(feedUrl)
     }
@@ -82,7 +74,6 @@ class LibraryViewModel @Inject constructor(
         _selectedFeedUrls.value = emptySet()
     }
 
-    /** Unsubscribe every picked feed, with a single undoable snackbar. */
     fun unsubscribeSelected() {
         val targets = _selectedFeedUrls.value
         if (targets.isEmpty()) return
@@ -94,7 +85,6 @@ class LibraryViewModel @Inject constructor(
                     R.plurals.unsubscribed_count, targets.size, targets.size,
                 ),
                 actionLabel = context.getString(R.string.undo),
-                // App-scoped so Undo survives leaving the Library screen (P1-19).
                 action = { repository.resubscribeAll(targets) },
             )
         }

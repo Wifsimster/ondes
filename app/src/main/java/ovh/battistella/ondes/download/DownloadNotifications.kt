@@ -6,12 +6,6 @@ import android.content.Context
 import android.os.Build
 import ovh.battistella.ondes.R
 
-/**
- * The low-importance notification channel backing the foreground download
- * worker. A foreground/expedited [EpisodeDownloadWorker] must post an ongoing
- * notification while it streams, so the OS is far less likely to kill it
- * mid-download (which previously left rows stuck at DOWNLOADING).
- */
 object DownloadNotifications {
 
     const val CHANNEL_ID = "downloads"

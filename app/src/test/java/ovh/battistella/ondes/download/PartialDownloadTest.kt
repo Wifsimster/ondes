@@ -4,11 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/**
- * The sidecar that decides whether a partial download may be resumed. Getting
- * this wrong means appending fresh bytes onto a stale file, so the round trip is
- * pinned here — including the cases where there is nothing to resume from.
- */
 class PartialDownloadTest {
 
     @Test
@@ -34,7 +29,6 @@ class PartialDownloadTest {
 
     @Test
     fun `a validator containing spaces survives`() {
-        // Last-Modified is a date with spaces and commas.
         val record = PartialDownload("Wed, 21 Oct 2026 07:28:00 GMT", 12)
         assertEquals(record, PartialDownload.parse(record.serialize()))
     }

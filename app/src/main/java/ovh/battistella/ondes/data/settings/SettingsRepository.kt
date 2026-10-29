@@ -16,10 +16,8 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Which color scheme to render, independent of the system setting. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
-/** A snapshot of every user-configurable preference in the app. */
 data class OndesSettings(
     val skipBackMs: Long = 10_000L,
     val skipForwardMs: Long = 30_000L,
@@ -38,11 +36,6 @@ data class OndesSettings(
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "ondes_settings")
 
-/**
- * Single source of truth for user preferences, backed by Preferences DataStore.
- * Exposes the whole bundle as a [Flow] so any layer (UI, playback, downloads,
- * sync) can react to changes, plus suspend setters for the settings screen.
- */
 @Singleton
 class SettingsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -84,12 +77,6 @@ class SettingsRepository @Inject constructor(
         )
     }
 
-    /**
-     * When the background refresh last completed, or 0 if it never has.
-     *
-     * Deliberately outside [OndesSettings]: it is a fact about this device, not a
-     * preference, so it is neither backed up nor restored onto another phone.
-     */
     val lastRefreshAt: Flow<Long> = context.dataStore.data.map { it[Keys.LAST_REFRESH_AT] ?: 0L }
 
     suspend fun setLastRefreshAt(value: Long) = edit { it[Keys.LAST_REFRESH_AT] = value }
@@ -109,10 +96,8 @@ class SettingsRepository @Inject constructor(
     suspend fun setDynamicColor(value: Boolean) = edit { it[Keys.DYNAMIC_COLOR] = value }
     suspend fun setOnboardingDone(value: Boolean) = edit { it[Keys.ONBOARDING_DONE] = value }
 
-    /** A one-shot snapshot of the current settings, for backup. */
     suspend fun snapshot(): OndesSettings = settings.first()
 
-    /** Overwrite every preference from a restored snapshot. */
     suspend fun restore(s: OndesSettings) = edit {
         it[Keys.SKIP_BACK] = s.skipBackMs
         it[Keys.SKIP_FORWARD] = s.skipForwardMs

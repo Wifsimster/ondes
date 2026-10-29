@@ -8,11 +8,6 @@ coreKtx = "1.15.0"
 lifecycle = "2.8.7"
 activityCompose = "1.9.3"
 composeBom = "2025.10.01"
-# Material 3 Expressive APIs (MaterialExpressiveTheme, wavy progress, loading
-# indicators) are only public in the 1.5.0-alpha line; stable 1.4.0 keeps them
-# internal. alpha14 is the last alpha on the Compose 1.8/1.9 train — alpha15+
-# pull Compose 1.11/1.12 which require AGP 9.1+. Pinned explicitly to override
-# the BOM (which resolves Compose UI up to 1.9.4, compatible with AGP 8.9.3).
 material3 = "1.5.0-alpha14"
 navigationCompose = "2.8.5"
 media3 = "1.5.1"

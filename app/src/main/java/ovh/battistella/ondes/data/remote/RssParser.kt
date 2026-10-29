@@ -11,24 +11,10 @@ import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Streaming RSS / Atom-ish parser for podcast feeds, built on the platform
- * [XmlPullParser] (no third-party dependency). Tolerant of the messy real
- * world: missing fields fall back to sensible defaults.
- */
 @Singleton
 class RssParser @Inject constructor(
     private val client: OkHttpClient,
 ) {
-    /**
-     * Fetch a feed, replaying the validators from the previous fetch so an
-     * unchanged feed can answer `304 Not Modified` (opt. 1).
-     *
-     * Every subscription used to be re-downloaded and re-parsed in full on each
-     * 3-hourly refresh cycle. Most cycles change nothing, so the conditional
-     * request turns that into a header exchange: no body over the air, no XML
-     * parse, no database churn.
-     */
     fun fetch(feedUrl: String, etag: String? = null, lastModified: String? = null): FeedFetch {
         val request = Request.Builder()
             .url(feedUrl)
@@ -55,7 +41,6 @@ class RssParser @Inject constructor(
         }
     }
 
-    /** Unconditional fetch — a feed seen for the first time has no validators. */
     fun fetchAndParse(feedUrl: String): ParsedFeed = when (val result = fetch(feedUrl)) {
         is FeedFetch.Updated -> result.feed
         is FeedFetch.NotModified -> error("Unexpected 304 for un-conditional fetch of $feedUrl")
@@ -77,7 +62,6 @@ class RssParser @Inject constructor(
         var insideItem = false
         var insideImage = false
 
-        // Per-item accumulators
         var iTitle = ""
         var iDesc = ""
         var iGuid = ""
@@ -87,9 +71,6 @@ class RssParser @Inject constructor(
         var iDuration = 0L
         var iChapters = ""
 
-        // A malformed tail (bad entity, mismatched tag) must not throw away the
-        // episodes already parsed — otherwise one stray `&nbsp;` makes a whole
-        // feed permanently un-subscribable (issue P1-7). Keep what we have.
         runCatching {
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
@@ -137,8 +118,6 @@ class RssParser @Inject constructor(
                     val name = parser.name.lowercase(Locale.US)
                     when (name) {
                         "item", "entry" -> {
-                            // Only http(s) enclosures are playable; a feed pointing
-                            // the audio at a local file:// / content:// URI is dropped.
                             if (isHttpUrl(iAudio)) {
                                 episodes += ParsedEpisode(
                                     guid = iGuid.ifEmpty { iAudio },
@@ -171,7 +150,6 @@ class RssParser @Inject constructor(
         )
     }
 
-    /** Returns a (key,value) for recognized item-level tags, or null. */
     private fun readItemTag(parser: XmlPullParser, name: String): Pair<String, String>? = when (name) {
         "title" -> "title" to readText(parser)
         "description", "summary", "itunes:summary" -> "description" to readText(parser)
@@ -197,7 +175,6 @@ class RssParser @Inject constructor(
     private fun parseDuration(raw: String): Long {
         val t = raw.trim()
         if (t.isEmpty()) return 0L
-        // Either seconds ("3600") or HH:MM:SS / MM:SS
         return if (t.contains(":")) {
             val parts = t.split(":").mapNotNull { it.trim().toLongOrNull() }
             when (parts.size) {
@@ -210,14 +187,6 @@ class RssParser @Inject constructor(
         }
     }
 
-    /**
-     * Read the text content of the element the parser is positioned on, tolerant
-     * of mixed content: nested tags (e.g. raw HTML in a description that isn't in
-     * a CDATA section) are skipped rather than throwing, unlike [XmlPullParser.nextText]
-     * which aborts the whole parse on any element child (issue P1-7). Leaves the
-     * parser on the element's END_TAG, matching `nextText()` so the caller's loop
-     * advances correctly.
-     */
     private fun readText(parser: XmlPullParser): String {
         val sb = StringBuilder()
         var depth = 1

@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Ondes</string>
 
-    <!-- Bottom navigation -->
     <string name="nav_home">Inicio</string>
     <string name="nav_queue">Cola</string>
     <string name="nav_library">Biblioteca</string>
@@ -9,7 +8,6 @@
     <string name="nav_downloads">Descargas</string>
     <string name="nav_settings">Ajustes</string>
 
-    <!-- Common -->
     <string name="subscribe">Suscribirse</string>
     <string name="subscribed_added">Añadido</string>
     <string name="subscribed_label">Suscrito</string>
@@ -25,7 +23,6 @@
     <string name="clear_queue_title">¿Vaciar la cola?</string>
     <string name="clear_queue_message">Esto quita todos los episodios de tu cola.</string>
 
-    <!-- Episode row -->
     <string name="played">Reproducido</string>
     <string name="mark_as_played">Marcar como reproducido</string>
     <string name="mark_as_unplayed">Marcar como no reproducido</string>
@@ -40,7 +37,6 @@
     <string name="add_to_queue">Añadir a la cola</string>
     <string name="time_left">%1$s restante</string>
 
-    <!-- Home -->
     <string name="loading_podcasts">Cargando tus pódcasts…</string>
     <string name="home_welcome_title">Te damos la bienvenida a Ondes</string>
     <string name="home_welcome_message">Suscríbete a algunos programas y tus últimos episodios aparecerán aquí.</string>
@@ -48,7 +44,6 @@
     <string name="continue_listening">Seguir escuchando</string>
     <string name="latest_episodes">Últimos episodios</string>
 
-    <!-- Library -->
     <string name="library_empty_title">Tu biblioteca está vacía</string>
     <string name="library_empty_message">Suscríbete a programas y aparecerán aquí, listos cuando quieras. 🎧</string>
     <string name="browse_podcasts">Explorar pódcasts</string>
@@ -63,11 +58,9 @@
         <item quantity="other">%1$d sin reproducir</item>
     </plurals>
 
-    <!-- Downloads -->
     <string name="downloads_empty_title">Aún no hay descargas</string>
     <string name="downloads_empty_message">Toca el icono de descarga en cualquier episodio para tenerlo sin conexión: perfecto para vuelos y zonas sin cobertura.</string>
 
-    <!-- Search / Discover -->
     <string name="search_placeholder">Busca pódcasts o pega una URL de feed</string>
     <string name="search_no_luck_title">Sin suerte</string>
     <string name="try_again">Reintentar</string>
@@ -84,7 +77,6 @@
     <string name="search_failed">No se pudo buscar. Comprueba tu conexión e inténtalo de nuevo. 🎧</string>
     <string name="clear_search">Borrar búsqueda</string>
 
-    <!-- Podcast detail -->
     <string name="artwork_for">Portada de %1$s</string>
     <string name="show_notes">Notas del episodio</string>
     <string name="show_more">Ver más</string>
@@ -94,7 +86,6 @@
         <item quantity="other">%1$d episodios</item>
     </plurals>
 
-    <!-- Player -->
     <string name="now_playing">Reproduciendo ahora</string>
     <string name="back_10">Retroceder 10 segundos</string>
     <string name="forward_30">Avanzar 30 segundos</string>
@@ -117,7 +108,6 @@
     <string name="chapters">Capítulos</string>
     <string name="chapter">Capítulo</string>
 
-    <!-- Settings -->
     <string name="settings_title">Ajustes</string>
     <string name="settings_playback">Reproducción</string>
     <string name="skip_back">Retroceder</string>
@@ -155,7 +145,6 @@
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Oscuro</string>
 
-    <!-- Settings: data ownership (OPML / backup) -->
     <string name="settings_data">Tus datos</string>
     <string name="export_opml_title">Exportar suscripciones (OPML)</string>
     <string name="export_opml_subtitle">Guarda tus feeds en un archivo OPML estándar</string>
@@ -171,7 +160,6 @@
     <string name="restore_done">Restauración completada</string>
     <string name="data_op_failed">Algo salió mal</string>
 
-    <!-- Queue -->
     <string name="queue_title">Cola</string>
     <string name="queue_empty_title">Tu cola está vacía</string>
     <string name="queue_empty_message">Añade episodios con «Reproducir a continuación» o «Añadir a la cola» y se pondrán en fila aquí.</string>
@@ -180,10 +168,8 @@
     <string name="move_down">Bajar</string>
     <string name="remove">Quitar</string>
 
-    <!-- Android Auto / browse tree -->
     <string name="subscriptions_title">Suscripciones</string>
 
-    <!-- New-episode notifications -->
     <string name="notif_channel_name">Nuevos episodios</string>
     <string name="notif_channel_desc">Avisos cuando tus suscripciones publican nuevos episodios</string>
     <plurals name="new_episodes_count">
@@ -193,19 +179,15 @@
     <string name="notif_more">+%1$d más</string>
     <string name="notif_podcast_line">%1$s: %2$s</string>
 
-    <!-- Per-podcast playback profile (#7) -->
     <string name="playback_speed">Velocidad de reproducción</string>
     <string name="speed_default">Predeterminada</string>
 
-    <!-- Auto-download (#8) -->
     <string name="auto_download_title">Descargar episodios nuevos automáticamente</string>
     <string name="auto_download_subtitle">Mantén los episodios nuevos listos sin conexión</string>
 
-    <!-- Episode filter (#10) -->
     <string name="filter_episodes">Filtrar episodios</string>
     <string name="delete_download">Eliminar descarga</string>
 
-    <!-- Onboarding (#9) -->
     <string name="onboarding_title">Sintonicemos tu feed 🎧</string>
     <string name="onboarding_subtitle">Elige algunos temas y te propondremos programas estupendos.</string>
     <string name="onboarding_continue">Continuar</string>

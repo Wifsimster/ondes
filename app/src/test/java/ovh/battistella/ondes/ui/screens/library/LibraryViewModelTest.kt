@@ -98,7 +98,6 @@ class LibraryViewModelTest {
         assertFalse(db.podcastDao().getPodcast("f1")!!.subscribed)
         assertFalse(db.podcastDao().getPodcast("f2")!!.subscribed)
         assertTrue(vm.selectedFeedUrls.value.isEmpty())
-        // An undoable snackbar was shown; invoking undo resubscribes them.
         assertEquals(1, messages.size)
         messages.first().onAction!!.invoke()
         advanceUntilIdle()

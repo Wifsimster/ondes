@@ -22,7 +22,6 @@ import java.io.OutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Portable playback progress for an episode already present locally. */
 private data class RestoredProgress(
     val id: String,
     val positionMs: Long,
@@ -30,12 +29,6 @@ private data class RestoredProgress(
     val isFinished: Boolean,
 )
 
-/**
- * Full, local-first backup & restore. Writes a single JSON document holding the
- * user's subscriptions, per-episode listening progress, queue and settings — so
- * a phone migration loses nothing — and reads it back. Downloads (device-local
- * files) are intentionally not part of a portable backup.
- */
 @Singleton
 class BackupManager @Inject constructor(
     private val db: OndesDatabase,
@@ -96,15 +89,9 @@ class BackupManager @Inject constructor(
     }
 
     suspend fun import(input: InputStream) = withContext(Dispatchers.IO) {
-        // Parse and validate the WHOLE document up front, before touching the
-        // database. Previously a missing key threw mid-import (getString), and the
-        // writes weren't atomic, leaving the library half-restored with no
-        // rollback (issue P0-9). Nothing below can throw on malformed input.
         val root = JSONObject(input.readBytes().toString(Charsets.UTF_8))
 
         val podcasts = root.optJSONArray("podcasts").objects().mapNotNull { o ->
-            // A backup is user-supplied: a tampered file could point a feed or its
-            // artwork at a local URI. Skip non-http feeds, strip non-http art.
             val feedUrl = o.optString("feedUrl")
             if (!isHttpUrl(feedUrl)) return@mapNotNull null
             PodcastEntity(
@@ -122,9 +109,6 @@ class BackupManager @Inject constructor(
             )
         }
 
-        // New episodes are inserted whole; for episodes that already exist locally
-        // only the portable listening state is restored, so an @Upsert can't wipe
-        // their download state / chapters (issue P0-8).
         val episodes = root.optJSONArray("episodes").objects().mapNotNull { o ->
             val audioUrl = httpUrlOrEmpty(o.optString("audioUrl"))
             val id = o.optString("id")
@@ -155,8 +139,6 @@ class BackupManager @Inject constructor(
 
         val settings = root.optJSONObject("settings")?.let(::settingsFromJson)
 
-        // Apply all database writes atomically — either the whole restore lands or
-        // none of it does.
         db.withTransaction {
             podcasts.forEach { podcastDao.upsert(it) }
             episodeDao.insertNew(episodes)
@@ -164,11 +146,9 @@ class BackupManager @Inject constructor(
             queueDao.clear()
             if (queueItems.isNotEmpty()) queueDao.upsertAll(queueItems)
         }
-        // Settings live in DataStore, outside the Room transaction.
         settings?.let { settingsRepository.restore(it) }
     }
 
-    /** Iterate a nullable [JSONArray] of objects, tolerating gaps. */
     private fun JSONArray?.objects(): List<JSONObject> =
         if (this == null) emptyList()
         else (0 until length()).mapNotNull { optJSONObject(it) }
@@ -205,8 +185,6 @@ class BackupManager @Inject constructor(
             themeMode = runCatching { ThemeMode.valueOf(o.optString("themeMode")) }
                 .getOrDefault(defaults.themeMode),
             dynamicColor = o.optBoolean("dynamicColor", defaults.dynamicColor),
-            // Restoring onboardingDone spares a migrating user the first-run
-            // onboarding they've already completed (issue P2).
             onboardingDone = o.optBoolean("onboardingDone", defaults.onboardingDone),
         )
     }

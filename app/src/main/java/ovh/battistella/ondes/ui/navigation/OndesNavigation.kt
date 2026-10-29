@@ -54,7 +54,6 @@ fun OndesRoot(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    // Open the show page when launched from a "new episode" notification.
     LaunchedEffect(deepLinkFeedUrl) {
         val feedUrl = deepLinkFeedUrl ?: return@LaunchedEffect
         navController.navigate(Routes.podcast(feedUrl)) { launchSingleTop = true }
@@ -64,12 +63,9 @@ fun OndesRoot(
     val isPlayer = currentRoute == Routes.PLAYER
     val isTopLevel = TopLevelDestination.entries.any { it.route == currentRoute }
 
-    // A single PlayerViewModel scoped to the root drives the mini-player.
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val playerState by playerViewModel.playerState.collectAsStateWithLifecycle()
 
-    // A single shared snackbar host renders transient messages — including the
-    // "Undo" actions behind reversible deletes — from anywhere in the app.
     val rootViewModel: OndesRootViewModel = hiltViewModel()
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(Unit) {
@@ -77,7 +73,6 @@ fun OndesRoot(
             val result = snackbarHostState.showSnackbar(
                 message = message.text,
                 actionLabel = message.actionLabel,
-                // Undo prompts stay long enough to actually be tapped.
                 duration = if (message.isUndo) SnackbarDuration.Long else SnackbarDuration.Short,
                 withDismissAction = message.actionLabel == null,
             )
@@ -85,8 +80,6 @@ fun OndesRoot(
         }
     }
 
-    // Switch to the Search tab (used by empty-state "browse" CTAs), reusing the
-    // same back-stack behaviour as a bottom-bar tap.
     val openSearch: () -> Unit = {
         navController.navigate(Routes.SEARCH) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -96,17 +89,11 @@ fun OndesRoot(
     }
 
     Scaffold(
-        // Also clear a display cutout so list content isn't drawn under a side
-        // notch when the phone is held in landscape (edge-to-edge is on).
         contentWindowInsets = ScaffoldDefaults.contentWindowInsets.union(WindowInsets.displayCutout),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             AnimatedVisibility(visible = !isPlayer) {
                 Column {
-                    // When the bottom bar is hidden (a pushed screen like Settings),
-                    // the mini-player itself sits at the very bottom and must clear
-                    // the system navigation bar; the NavigationBar handles that inset
-                    // otherwise.
                     MiniPlayer(
                         state = playerState,
                         onPlayPause = playerViewModel::playPause,
@@ -126,8 +113,6 @@ fun OndesRoot(
             navController = navController,
             startDestination = Routes.HOME,
             modifier = Modifier.fillMaxSize(),
-            // Quiet cross-fade between the main destinations; the spring-based
-            // defaults pick up the expressive motion scheme from the theme.
             enterTransition = { fadeIn() },
             exitTransition = { fadeOut() },
             popEnterTransition = { fadeIn() },
@@ -172,12 +157,9 @@ fun OndesRoot(
                 PodcastScreen(
                     onBack = { navController.popBackStack() },
                     onOpenPlayer = { navController.navigate(Routes.PLAYER) { launchSingleTop = true } },
-                    // The root's inset (mini-player + nav bar) must reach the list
-                    // or the last episode rows sit hidden behind the mini-player.
                     contentPadding = innerPadding,
                 )
             }
-            // The player is a "now playing" surface — slide it up from the bottom.
             composable(
                 Routes.PLAYER,
                 enterTransition = { slideInVertically(initialOffsetY = { it }) + fadeIn() },
@@ -210,7 +192,6 @@ private fun BottomBar(
                         }
                     }
                 },
-                // Label is shown as text below; null avoids TalkBack reading it twice.
                 icon = { Icon(dest.icon, contentDescription = null) },
                 label = { Text(stringResource(dest.labelRes)) },
             )

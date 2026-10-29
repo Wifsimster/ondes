@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Ondes</string>
 
-    <!-- Navigation -->
     <string name="nav_home">Accueil</string>
     <string name="nav_queue">File</string>
     <string name="nav_library">Bibliothèque</string>
@@ -9,7 +8,6 @@
     <string name="nav_downloads">Téléchargements</string>
     <string name="nav_settings">Réglages</string>
 
-    <!-- Commun -->
     <string name="subscribe">S\'abonner</string>
     <string name="subscribed_added">Ajouté</string>
     <string name="subscribed_label">Abonné</string>
@@ -25,7 +23,6 @@
     <string name="clear_queue_title">Vider la file ?</string>
     <string name="clear_queue_message">Cela retire tous les épisodes de votre file.</string>
 
-    <!-- Ligne d\'épisode -->
     <string name="played">Écouté</string>
     <string name="mark_as_played">Marquer comme écouté</string>
     <string name="mark_as_unplayed">Marquer comme non écouté</string>
@@ -40,7 +37,6 @@
     <string name="add_to_queue">Ajouter à la file</string>
     <string name="time_left">%1$s restant</string>
 
-    <!-- Accueil -->
     <string name="loading_podcasts">Chargement de vos podcasts…</string>
     <string name="home_welcome_title">Bienvenue dans Ondes</string>
     <string name="home_welcome_message">Abonnez-vous à quelques émissions et vos derniers épisodes apparaîtront ici.</string>
@@ -48,7 +44,6 @@
     <string name="continue_listening">Reprendre l\'écoute</string>
     <string name="latest_episodes">Derniers épisodes</string>
 
-    <!-- Bibliothèque -->
     <string name="library_empty_title">Votre bibliothèque est vide</string>
     <string name="library_empty_message">Abonnez-vous à des émissions et elles apparaîtront ici, prêtes quand vous l\'êtes. À vos écoutes. 🎧</string>
     <string name="browse_podcasts">Parcourir les podcasts</string>
@@ -63,11 +58,9 @@
         <item quantity="other">%1$d non écoutés</item>
     </plurals>
 
-    <!-- Téléchargements -->
     <string name="downloads_empty_title">Aucun téléchargement</string>
     <string name="downloads_empty_message">Appuyez sur l\'icône de téléchargement d\'un épisode pour l\'écouter hors ligne — parfait pour l\'avion et les zones blanches.</string>
 
-    <!-- Recherche / Découverte -->
     <string name="search_placeholder">Rechercher des podcasts ou coller une URL de flux</string>
     <string name="search_no_luck_title">Pas de chance</string>
     <string name="try_again">Réessayer</string>
@@ -84,7 +77,6 @@
     <string name="search_failed">Recherche impossible. Vérifiez votre connexion et réessayez. 🎧</string>
     <string name="clear_search">Effacer la recherche</string>
 
-    <!-- Détail du podcast -->
     <string name="artwork_for">Pochette de %1$s</string>
     <string name="show_notes">Notes de l\'épisode</string>
     <string name="show_more">Voir plus</string>
@@ -94,7 +86,6 @@
         <item quantity="other">%1$d épisodes</item>
     </plurals>
 
-    <!-- Lecteur -->
     <string name="now_playing">En cours de lecture</string>
     <string name="back_10">Reculer de 10 secondes</string>
     <string name="forward_30">Avancer de 30 secondes</string>
@@ -117,7 +108,6 @@
     <string name="chapters">Chapitres</string>
     <string name="chapter">Chapitre</string>
 
-    <!-- Réglages -->
     <string name="settings_title">Réglages</string>
     <string name="settings_playback">Lecture</string>
     <string name="skip_back">Reculer</string>
@@ -155,7 +145,6 @@
     <string name="theme_light">Clair</string>
     <string name="theme_dark">Sombre</string>
 
-    <!-- Réglages : possession des données (OPML / sauvegarde) -->
     <string name="settings_data">Vos données</string>
     <string name="export_opml_title">Exporter les abonnements (OPML)</string>
     <string name="export_opml_subtitle">Enregistrer vos flux dans un fichier OPML standard</string>
@@ -171,7 +160,6 @@
     <string name="restore_done">Restauration terminée</string>
     <string name="data_op_failed">Une erreur est survenue</string>
 
-    <!-- File d\'attente -->
     <string name="queue_title">File d\'attente</string>
     <string name="queue_empty_title">Votre file est vide</string>
     <string name="queue_empty_message">Ajoutez des épisodes via « Lire ensuite » ou « Ajouter à la file » et ils s\'aligneront ici.</string>
@@ -180,10 +168,8 @@
     <string name="move_down">Descendre</string>
     <string name="remove">Retirer</string>
 
-    <!-- Android Auto / arborescence -->
     <string name="subscriptions_title">Abonnements</string>
 
-    <!-- Notifications de nouveaux épisodes -->
     <string name="notif_channel_name">Nouveaux épisodes</string>
     <string name="notif_channel_desc">Alertes quand vos abonnements publient de nouveaux épisodes</string>
     <plurals name="new_episodes_count">
@@ -193,19 +179,15 @@
     <string name="notif_more">+%1$d de plus</string>
     <string name="notif_podcast_line">%1$s : %2$s</string>
 
-    <!-- Profil de lecture par podcast (#7) -->
     <string name="playback_speed">Vitesse de lecture</string>
     <string name="speed_default">Par défaut</string>
 
-    <!-- Téléchargement auto (#8) -->
     <string name="auto_download_title">Télécharger auto les nouveaux épisodes</string>
     <string name="auto_download_subtitle">Garder les nouveaux épisodes prêts hors ligne</string>
 
-    <!-- Filtre d\'épisodes (#10) -->
     <string name="filter_episodes">Filtrer les épisodes</string>
     <string name="delete_download">Supprimer le téléchargement</string>
 
-    <!-- Onboarding (#9) -->
     <string name="onboarding_title">Réglons vos ondes 🎧</string>
     <string name="onboarding_subtitle">Choisissez quelques thèmes et on vous propose de bonnes émissions.</string>
     <string name="onboarding_continue">Continuer</string>

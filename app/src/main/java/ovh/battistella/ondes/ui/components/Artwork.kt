@@ -18,15 +18,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import ovh.battistella.ondes.ui.theme.OndesTheme
 
-/**
- * Show / episode artwork.
- *
- * The corner [shape] defaults to the shared [OndesTheme.shapes] vocabulary so
- * every artwork across the app reads with one consistent radius instead of a
- * per-call-site literal. Pass a [contentDescription] when the artwork is the
- * primary content of a screen (player, podcast header); leave it null in rows
- * where adjacent text already names the show, so TalkBack isn't redundant.
- */
 @Composable
 fun PodcastArtwork(
     url: String?,

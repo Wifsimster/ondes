@@ -6,13 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/**
- * Guards [MediaItems.resolveAudioSource], the single security-sensitive rule that
- * decides what an episode actually plays. A regression here either breaks offline
- * playback (ignoring a downloaded file) or, worse, lets a tampered feed point
- * playback at a non-http URL — so the precedence and the http(s)-only guard are
- * pinned by these tests.
- */
 class MediaItemsTest {
 
     @Test
@@ -43,8 +36,6 @@ class MediaItemsTest {
 
     @Test
     fun rejectsNonHttpRemoteUrls() {
-        // A hostile feed could try to redirect playback at a local file or
-        // content provider; only http(s) is allowed through.
         assertNull(MediaItems.resolveAudioSource(null, "file:///data/data/secret"))
         assertNull(MediaItems.resolveAudioSource(null, "content://media/external/audio"))
         assertNull(MediaItems.resolveAudioSource(null, ""))

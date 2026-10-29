@@ -1,8 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Tells Android Auto that Ondes is a media app it can browse and control.
-  Required for the app to appear in the car's media app list.
--->
 <automotiveApp>
     <uses name="media" />
 </automotiveApp>

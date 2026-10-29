@@ -21,15 +21,8 @@ import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 
-/** mm:ss or h:mm:ss, not glued to surrounding digits (so "1234" isn't a match). */
 private val TIMESTAMP_REGEX = Regex("""(?<!\d)(\d{1,2}):([0-5]\d)(?::([0-5]\d))?(?!\d)""")
 
-/**
- * Renders feed HTML (show notes / descriptions) as rich text: bold/italic,
- * paragraph breaks and **tappable links** are preserved instead of being
- * stripped. When [onTimestampClick] is supplied, `mm:ss` / `h:mm:ss` timestamps
- * in the text become clickable and seek the player.
- */
 @Composable
 fun HtmlText(
     html: String,
@@ -50,7 +43,6 @@ fun HtmlText(
         )
     }
 
-    // Keep the latest callback without re-parsing on every player position tick.
     val click by rememberUpdatedState(onTimestampClick)
     val annotated = remember(base, onTimestampClick != null) {
         if (onTimestampClick == null) {

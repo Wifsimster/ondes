@@ -1,20 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Backup & device-transfer rules for Android 12+ (API 31).
-
-  Ondes promises (see docs/privacy-policy.md) that subscriptions, listening
-  progress, downloads, queue and settings stay on the device and are never
-  transmitted. To keep that guarantee true we explicitly exclude every store of
-  user data from BOTH cloud backup (Google Drive) and direct device-to-device
-  transfer:
-    - ondes.db        — Room DB: subscriptions, episodes, listening progress, queue
-    - datastore/      — Preferences DataStore: user settings
-    - downloads/      — offline episode audio (large, re-downloadable; would also
-                        blow Auto Backup's ~25 MB quota and silently disable backup)
-
-  Portability is handled instead by the in-app OPML / JSON backup the user
-  triggers explicitly. Mirrors backup_rules.xml used on older API levels.
--->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="database" path="ondes.db" />

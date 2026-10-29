@@ -18,11 +18,6 @@ import ovh.battistella.ondes.testing.TestSupport
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 
-/**
- * Round-trips a backup: export from one database, import into a fresh one, and
- * confirm subscriptions, listening progress and queue survive the migration —
- * while a non-http (tampered) feed is rejected on import.
- */
 @RunWith(RobolectricTestRunner::class)
 class BackupManagerTest {
 
@@ -75,7 +70,6 @@ class BackupManagerTest {
     @Test
     fun `import restores progress without clobbering an existing download`() = runBlocking {
         val (db, importer) = newManager()
-        // An episode already downloaded on this device.
         db.episodeDao().upsertAll(
             listOf(
                 TestSupport.episode(
@@ -95,8 +89,8 @@ class BackupManagerTest {
         importer.import(ByteArrayInputStream(doc.toByteArray()))
 
         val e1 = db.episodeDao().getEpisode("e1")!!
-        assertEquals(5000L, e1.positionMs)                       // progress restored
-        assertEquals(DownloadState.DOWNLOADED, e1.downloadState) // download preserved
+        assertEquals(5000L, e1.positionMs)
+        assertEquals(DownloadState.DOWNLOADED, e1.downloadState)
         assertEquals("/data/e1.audio", e1.localFilePath)
     }
 
@@ -113,7 +107,6 @@ class BackupManagerTest {
 
         importer.import(ByteArrayInputStream(doc.toByteArray()))
 
-        // The valid podcast and episode land; the entry missing an audio URL is dropped.
         assertEquals("A", db.podcastDao().getPodcast("https://a.example/feed")?.title)
         assertNull(db.episodeDao().getEpisode("bad"))
         assertEquals("good", db.episodeDao().getEpisode("good")?.id)

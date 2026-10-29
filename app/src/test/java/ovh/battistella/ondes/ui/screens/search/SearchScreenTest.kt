@@ -28,11 +28,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import androidx.lifecycle.SavedStateHandle
 
-/**
- * Page-level test: renders the real [SearchScreen] against a real ViewModel +
- * in-memory repository, and drives it through the Compose UI-test APIs under
- * Robolectric (no emulator). Exercises UI → ViewModel → repository for real.
- */
 @RunWith(RobolectricTestRunner::class)
 class SearchScreenTest {
 
@@ -45,7 +40,6 @@ class SearchScreenTest {
 
     private fun viewModel(): SearchViewModel {
         db = TestSupport.inMemoryDb()
-        // Unconfined IO so repository work completes eagerly inside the test.
         val repo = TestSupport.repository(db, Dispatchers.Unconfined, rss = rss, search = search)
         return SearchViewModel(context, SavedStateHandle(), repo, SnackbarController())
     }

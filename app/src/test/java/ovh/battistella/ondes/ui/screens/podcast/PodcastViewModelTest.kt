@@ -47,10 +47,8 @@ class PodcastViewModelTest {
     private suspend fun build(subscribed: Boolean = false): PodcastViewModel {
         db = TestSupport.inMemoryDb()
         repo = TestSupport.repository(db, mainDispatcher.dispatcher, rss = rss)
-        // Opening a show never subscribes to it, so a subscribed one is seeded.
         if (subscribed) db.podcastDao().upsert(TestSupport.podcast(feedUrl = feedUrl))
         connection = TestSupport.mockConnection(playerFlow)
-        // The screen's init refreshes the feed; feed it two episodes.
         every { rss.fetch(feedUrl, any(), any()) } returns TestSupport.feedFetch(TestSupport.parsedFeed(
             title = "My Show",
             episodes = listOf(
@@ -86,10 +84,6 @@ class PodcastViewModelTest {
         assertEquals("My Show", db.podcastDao().getPodcast(feedUrl)?.title)
     }
 
-    /**
-     * The list starts at one page and grows on demand, instead of reading a
-     * whole back catalogue out of SQLite to fill the first screen (opt. 7).
-     */
     @Test
     fun `episodes load a page at a time`() = runTest(mainDispatcher.dispatcher) {
         val vm = build()
@@ -97,7 +91,6 @@ class PodcastViewModelTest {
         backgroundScope.launch { vm.episodeCount.collect {} }
         advanceUntilIdle()
 
-        // A back catalogue larger than one page.
         db.episodeDao().insertNew(
             (1..60).map { i ->
                 TestSupport.episode(
@@ -151,8 +144,6 @@ class PodcastViewModelTest {
             backgroundScope.launch { vm.podcast.collect {} }
             advanceUntilIdle()
 
-            // The init refresh (e.g. a search result being previewed) must leave
-            // the show out of the library.
             assertFalse(vm.podcast.value!!.subscribed)
         }
 

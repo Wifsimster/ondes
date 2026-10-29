@@ -38,11 +38,6 @@ class DownloadManager @Inject constructor(
     fun enqueue(episodeId: String) {
         scope.launch {
             repository.updateDownload(episodeId, DownloadState.QUEUED, 0, null)
-            // Read the Wi-Fi-only preference fresh, per enqueue, rather than off a
-            // cached field populated by an async collect. That field could still
-            // hold its default when WorkManager cold-starts the process for an
-            // auto-download, silently downloading over metered data against the
-            // user's explicit choice (issue P0-6).
             val wifiOnly = settingsRepository.settings.first().wifiOnlyDownloads
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
@@ -50,9 +45,6 @@ class DownloadManager @Inject constructor(
             val request = OneTimeWorkRequestBuilder<EpisodeDownloadWorker>()
                 .setInputData(workDataOf(EpisodeDownloadWorker.KEY_EPISODE_ID to episodeId))
                 .setConstraints(constraints)
-                // Expedited so a user-triggered download starts promptly and runs as
-                // a foreground worker (less likely to be OS-killed mid-stream); falls
-                // back to a normal request when the app is out of expedited quota.
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 .setBackoffCriteria(
                     BackoffPolicy.EXPONENTIAL,
@@ -69,10 +61,6 @@ class DownloadManager @Inject constructor(
         WorkManager.getInstance(context).cancelUniqueWork(workName(episodeId))
         scope.launch {
             repository.updateDownload(episodeId, DownloadState.NONE, 0, null)
-            // Remove any bytes already on disk. Before the download completes there
-            // is no localFilePath in the DB, so delete the deterministic target and
-            // its partial sibling — otherwise a cancelled-just-after-finish download
-            // stranded its file with no way to remove it (issue P1-14).
             runCatching {
                 DownloadFiles.target(context, episodeId).delete()
                 DownloadFiles.partFile(context, episodeId).delete()
@@ -81,15 +69,8 @@ class DownloadManager @Inject constructor(
         }
     }
 
-    /**
-     * Delete the local file for an episode. [showUndo] offers a re-download via a
-     * snackbar for user-initiated deletes; automatic delete-when-finished passes
-     * false so it stays silent.
-     */
     fun deleteDownload(episodeId: String, localPath: String?, showUndo: Boolean = true) {
         localPath?.let { runCatching { File(it).delete() } }
-        // Also clear the deterministic artifacts, covering a stored path that has
-        // drifted from the current naming scheme and any leftover partial file.
         runCatching {
             DownloadFiles.target(context, episodeId).delete()
             DownloadFiles.partFile(context, episodeId).delete()
@@ -97,7 +78,6 @@ class DownloadManager @Inject constructor(
         }
         scope.launch { repository.updateDownload(episodeId, DownloadState.NONE, 0, null) }
         if (showUndo) {
-            // Deleting only removes the local file; "Undo" simply re-downloads it.
             snackbar.show(
                 text = context.getString(R.string.download_deleted),
                 actionLabel = context.getString(R.string.undo),
@@ -106,17 +86,6 @@ class DownloadManager @Inject constructor(
         }
     }
 
-    /**
-     * Delete audio files in the downloads directory that no episode still points
-     * at — cancelled-at-the-finish-line strands, files from unsubscribed
-     * podcasts, and `.part`/`.meta` leftovers from downloads that were abandoned
-     * rather than merely interrupted (issue P1-14).
-     *
-     * Partial files belonging to a download that is still QUEUED or DOWNLOADING
-     * are spared: WorkManager will re-run that job and resume from those exact
-     * bytes (opt. 5), so sweeping them would throw away the transfer this
-     * process was killed in the middle of.
-     */
     fun sweepOrphans() {
         scope.launch {
             val dir = DownloadFiles.dir(context)

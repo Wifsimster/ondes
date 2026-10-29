@@ -54,9 +54,6 @@ fun MiniPlayer(
         tonalElevation = 3.dp,
     ) {
         Column {
-            // A slim brand-tinted progress line flush to the player's top edge.
-            // Decorative here: the full player exposes the scrubber to TalkBack,
-            // so this duplicate progress is hidden from the accessibility tree.
             LinearProgressIndicator(
                 progress = { progress },
                 color = OndesTheme.colors.brand,

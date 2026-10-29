@@ -12,18 +12,15 @@ import os
 
 from PIL import Image, ImageDraw, ImageFont
 
-C0 = (61, 90, 254)    # #3D5AFE  indigo A200
-C1 = (26, 35, 126)    # #1A237E  indigo 900
-# Brand fonts bundled with the app (see docs/fonts/): Space Grotesk for the
-# wordmark, Manrope for the tagline.
+C0 = (61, 90, 254)
+C1 = (26, 35, 126)
 FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
                         "app", "src", "main", "res", "font")
 FONT_WORDMARK = os.path.join(FONT_DIR, "space_grotesk_bold.ttf")
 FONT_TAGLINE = os.path.join(FONT_DIR, "manrope_medium.ttf")
 
-# Bars in the 108x108 icon viewport: (center_x, top_y, bottom_y)
 BARS = [(28, 42, 66), (41, 34, 74), (54, 26, 82), (67, 34, 74), (80, 42, 66)]
-STROKE = 8  # bar width in viewport units
+STROKE = 8
 
 
 def diagonal_gradient(w, h, c0, c1):
@@ -64,7 +61,6 @@ def wave_mark(size, scale_unit, offset=(0, 0), ss=4):
 def make_icon(path):
     n = 512
     img = diagonal_gradient(n, n, C0, C1).convert("RGBA")
-    # Map the 108 viewport across the full square (mark fills the centre).
     mark = wave_mark((n, n), n / 108.0)
     img.alpha_composite(mark)
     img.convert("RGB").save(path)
@@ -74,19 +70,15 @@ def make_icon(path):
 def make_feature(path):
     w, h = 1024, 500
     img = diagonal_gradient(w, h, C0, C1).convert("RGBA")
-    # Mark on the left third, vertically centred. Viewport ~300px tall.
     vp = 300.0
     unit = vp / 108.0
     off_x = 150
     off_y = (h - vp) / 2
     img.alpha_composite(wave_mark((w, h), unit, offset=(off_x, off_y)))
-    # Wordmark + tagline on the right.
     d = ImageDraw.Draw(img)
     title = ImageFont.truetype(FONT_WORDMARK, 150)
     sub = ImageFont.truetype(FONT_TAGLINE, 44)
     tx = 470
-    # Place by baseline ("ls" anchor) so the layout doesn't depend on each
-    # font's ascent metrics.
     d.text((tx, 300), "Ondes", font=title, anchor="ls",
            fill=(255, 255, 255, 255))
     d.text((tx + 6, 358), "Lecteur de podcasts", font=sub, anchor="ls",

@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Verify every bundled native library (.so) supports 16 KB memory page sizes,
-# as required by Google Play for new apps & updates targeting Android 15+.
-#
-# It inspects each PT_LOAD segment of every .so inside an AAB or APK and checks
-# the segment alignment is a multiple of 16 KB (16384). Libraries built with a
-# 4 KB max-page-size (alignment 0x1000) fail.
-#
-# Usage: ./scripts/check-16kb-alignment.sh <app.aab|app.apk>
-# Exit:  0 = compliant (or no native libs)  ·  1 = non-compliant  ·  2 = usage/env error
 set -euo pipefail
 
 ARCHIVE="${1:?usage: check-16kb-alignment.sh <app.aab|app.apk>}"
@@ -19,7 +10,6 @@ ALIGN=16384
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
-# AABs store libs under base/lib/<abi>/, APKs under lib/<abi>/.
 unzip -o -q "$ARCHIVE" 'base/lib/*/*.so' 'lib/*/*.so' -d "$workdir" 2>/dev/null || true
 
 mapfile -t libs < <(find "$workdir" -name '*.so' | sort)
