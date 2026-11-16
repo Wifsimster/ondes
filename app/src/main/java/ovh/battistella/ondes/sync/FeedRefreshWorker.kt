@@ -35,10 +35,11 @@ class FeedRefreshWorker @AssistedInject constructor(
                     batch.episodes.forEach { downloadManager.enqueue(it.id) }
                 }
             }
-            if (settings.newEpisodeNotifications) {
+            val delivered = !settings.newEpisodeNotifications ||
                 NewEpisodeNotifier.notify(appContext, batches = pending)
+            if (delivered) {
+                repository.clearPendingNotifications(pending.flatMap { it.episodes.map(EpisodeEntity::id) })
             }
-            repository.clearPendingNotifications(pending.flatMap { it.episodes.map(EpisodeEntity::id) })
 
             settingsRepository.setLastRefreshAt(System.currentTimeMillis())
             Result.success()

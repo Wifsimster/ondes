@@ -135,6 +135,10 @@
     <string name="last_checked_never">Nunca</string>
     <string name="battery_limited_title">La optimización de batería está activada</string>
     <string name="battery_limited_subtitle">Android puede impedir que Ondes busque nuevos episodios con la aplicación cerrada. Toca para permitir la actividad en segundo plano.</string>
+    <string name="autostart_title">Inicio automático</string>
+    <string name="autostart_subtitle">Permite que tu teléfono inicie Ondes en segundo plano para encontrar nuevos episodios con la aplicación cerrada. Toca para abrir el ajuste.</string>
+    <string name="refresh_stale_title">Comprobaciones atrasadas</string>
+    <string name="refresh_stale_subtitle">Ondes lleva un tiempo sin buscar nuevos episodios. Toca para permitir el inicio automático y el uso de batería sin restricciones.</string>
     <string name="settings_appearance">Apariencia</string>
     <string name="theme">Tema</string>
     <string name="dynamic_color_title">Color dinámico</string>

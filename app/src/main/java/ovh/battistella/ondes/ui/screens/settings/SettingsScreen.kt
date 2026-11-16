@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ovh.battistella.ondes.BuildConfig
 import ovh.battistella.ondes.R
 import ovh.battistella.ondes.data.settings.ThemeMode
+import ovh.battistella.ondes.sync.OemAutostart
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -169,11 +170,34 @@ fun SettingsScreen(
                 title = stringResource(R.string.last_checked_title),
                 value = lastCheckedLabel(context, lastRefreshAt),
             )
+            val stale = OemAutostart.isStale(
+                enabled = settings.backgroundRefresh,
+                lastRefreshAt = lastRefreshAt,
+                now = System.currentTimeMillis(),
+            )
+            val autostartSupported = OemAutostart.isSupported()
+            if (stale) {
+                ActionRow(
+                    title = stringResource(R.string.refresh_stale_title),
+                    subtitle = stringResource(R.string.refresh_stale_subtitle),
+                    emphasized = true,
+                    onClick = {
+                        if (autostartSupported) OemAutostart.open(context) else openBatterySettings(context)
+                    },
+                )
+            }
             if (!batteryUnrestricted) {
                 ActionRow(
                     title = stringResource(R.string.battery_limited_title),
                     subtitle = stringResource(R.string.battery_limited_subtitle),
                     onClick = { openBatterySettings(context) },
+                )
+            }
+            if (autostartSupported) {
+                ActionRow(
+                    title = stringResource(R.string.autostart_title),
+                    subtitle = stringResource(R.string.autostart_subtitle),
+                    onClick = { OemAutostart.open(context) },
                 )
             }
         }
@@ -365,6 +389,7 @@ private fun ActionRow(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
+    emphasized: Boolean = false,
 ) {
     Column(
         modifier = Modifier
@@ -372,7 +397,11 @@ private fun ActionRow(
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (emphasized) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+        )
         Text(
             subtitle,
             style = MaterialTheme.typography.bodySmall,
