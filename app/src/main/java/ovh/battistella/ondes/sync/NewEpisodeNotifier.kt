@@ -42,16 +42,17 @@ object NewEpisodeNotifier {
             ?.createNotificationChannel(channel)
     }
 
-    fun notify(context: Context, batches: List<NewEpisodeBatch>) {
+    fun notify(context: Context, batches: List<NewEpisodeBatch>): Boolean {
         val withEpisodes = batches.filter { it.episodes.isNotEmpty() }
-        if (withEpisodes.isEmpty()) return
-        if (!hasPermission(context)) return
+        if (withEpisodes.isEmpty()) return true
+        if (!hasPermission(context)) return false
 
         val manager = NotificationManagerCompat.from(context)
         withEpisodes.forEach { batch ->
             manager.notify(notificationId(batch.feedUrl), buildPodcastNotification(context, batch))
         }
         manager.notify(SUMMARY_ID, buildSummary(context, withEpisodes))
+        return true
     }
 
     private fun buildPodcastNotification(context: Context, batch: NewEpisodeBatch): Notification {
