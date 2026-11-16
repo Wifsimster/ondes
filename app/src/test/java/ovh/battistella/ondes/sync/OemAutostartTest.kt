@@ -74,12 +74,26 @@ class OemAutostartTest {
 
     @Test
     fun staleOnlyWhenEnabledAndPastThreshold() {
-        val now = 100L * 60 * 60 * 1000
-        val fresh = now - 2L * 60 * 60 * 1000
-        val old = now - OemAutostart.STALE_AFTER_MS - 1
-        assertFalse(OemAutostart.isStale(true, fresh, now))
-        assertTrue(OemAutostart.isStale(true, old, now))
-        assertFalse(OemAutostart.isStale(false, old, now))
-        assertFalse(OemAutostart.isStale(true, 0L, now))
+        val hour = 60L * 60 * 1000
+        val now = 100L * hour
+        val installed = now - 50L * hour
+        assertFalse(OemAutostart.isStale(true, now - 5L * hour, installed, now))
+        assertTrue(OemAutostart.isStale(true, now - OemAutostart.STALE_AFTER_MS - 1, installed, now))
+        assertFalse(OemAutostart.isStale(false, now - 10L * hour, installed, now))
+    }
+
+    @Test
+    fun neverRefreshedFallsBackToInstallTime() {
+        val hour = 60L * 60 * 1000
+        val now = 100L * hour
+        assertTrue(OemAutostart.isStale(true, 0L, now - 7L * hour, now))
+        assertFalse(OemAutostart.isStale(true, 0L, now - 5L * hour, now))
+        assertFalse(OemAutostart.isStale(false, 0L, now - 7L * hour, now))
+        assertFalse(OemAutostart.isStale(true, 0L, 0L, now))
+    }
+
+    @Test
+    fun installedAtReadsPackageInfo() {
+        assertTrue(OemAutostart.installedAt(context) >= 0L)
     }
 }
