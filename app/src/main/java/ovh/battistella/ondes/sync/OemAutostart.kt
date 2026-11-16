@@ -10,7 +10,7 @@ import java.util.Locale
 
 object OemAutostart {
 
-    const val STALE_AFTER_MS = 3L * 60 * 60 * 1000
+    const val STALE_AFTER_MS = 6L * 60 * 60 * 1000
 
     private val XIAOMI = setOf("xiaomi", "redmi", "poco")
     private val HUAWEI = setOf("huawei", "honor")
@@ -54,8 +54,16 @@ object OemAutostart {
         }
     }
 
-    fun isStale(enabled: Boolean, lastRefreshAt: Long, now: Long): Boolean =
-        enabled && lastRefreshAt > 0L && now - lastRefreshAt > STALE_AFTER_MS
+    fun isStale(enabled: Boolean, lastRefreshAt: Long, installedAt: Long, now: Long): Boolean {
+        if (!enabled) return false
+        val baseline = if (lastRefreshAt > 0L) lastRefreshAt else installedAt
+        return baseline > 0L && now - baseline > STALE_AFTER_MS
+    }
+
+    fun installedAt(context: Context): Long =
+        runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
+        }.getOrDefault(0L)
 
     fun candidateIntents(
         context: Context,

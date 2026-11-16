@@ -173,6 +173,7 @@ fun SettingsScreen(
             val stale = OemAutostart.isStale(
                 enabled = settings.backgroundRefresh,
                 lastRefreshAt = lastRefreshAt,
+                installedAt = remember { OemAutostart.installedAt(context) },
                 now = System.currentTimeMillis(),
             )
             val autostartSupported = OemAutostart.isSupported()
