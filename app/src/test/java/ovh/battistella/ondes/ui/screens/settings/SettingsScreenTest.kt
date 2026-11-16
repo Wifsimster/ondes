@@ -72,4 +72,44 @@ class SettingsScreenTest {
         compose.onAllNodesWithText(context.getString(R.string.battery_limited_title))
             .assertCountEquals(1)
     }
+
+    private fun setInstalledAt(time: Long) {
+        val info = android.content.pm.PackageInfo().apply {
+            packageName = context.packageName
+            firstInstallTime = time
+        }
+        org.robolectric.Shadows.shadowOf(context.packageManager).installPackage(info)
+    }
+
+    @Test
+    fun lateRowShowsWhenNeverRefreshedAndInstalledLongAgo() {
+        setInstalledAt(System.currentTimeMillis() - 7L * 60 * 60 * 1000)
+        compose.setContent {
+            OndesTheme(dynamicColor = false) {
+                SettingsScreen(onBack = {}, contentPadding = PaddingValues(0.dp), viewModel = build())
+            }
+        }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText(context.getString(R.string.last_checked_title))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onAllNodesWithText(context.getString(R.string.refresh_stale_title))
+            .assertCountEquals(1)
+    }
+
+    @Test
+    fun lateRowHiddenOnFreshInstall() {
+        setInstalledAt(System.currentTimeMillis() - 60L * 60 * 1000)
+        compose.setContent {
+            OndesTheme(dynamicColor = false) {
+                SettingsScreen(onBack = {}, contentPadding = PaddingValues(0.dp), viewModel = build())
+            }
+        }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText(context.getString(R.string.last_checked_title))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onAllNodesWithText(context.getString(R.string.refresh_stale_title))
+            .assertCountEquals(0)
+    }
 }
