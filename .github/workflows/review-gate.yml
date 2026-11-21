@@ -1,0 +1,63 @@
+name: Review gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+  issue_comment:
+    types: [created, edited, deleted]
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  review-go:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+    steps:
+      - name: Set review/go on the head commit
+        run: |
+          set -euo pipefail
+          pr_json=$(gh pr view "$PR" -R "$REPO" --json headRefOid,author,state,comments,reviews)
+          state=$(jq -r .state <<<"$pr_json")
+          if [ "$state" != "OPEN" ]; then
+            echo "PR #$PR is $state, nothing to do."
+            exit 0
+          fi
+          head=$(jq -r .headRefOid <<<"$pr_json")
+          verdict=$(jq -r --arg head "$head" '
+            .author.login as $author |
+            ([.reviews[]?
+              | select(.state == "APPROVED" and .commit.oid == $head and .author.login != $author)] | length) as $approvals |
+            ([.comments[]?
+              | select(.authorAssociation == "OWNER" or .authorAssociation == "MEMBER" or .authorAssociation == "COLLABORATOR")
+              | select((.body // "") | test("(?m)^Review:[ \t]*(GO|NO-GO)\\b"))]
+              | sort_by(.createdAt) | last) as $mark |
+            if $mark == null then
+              (if $approvals > 0 then "success|GitHub approval on the head" else "failure|no Review: GO comment for this head" end)
+            else
+              ($mark.body | [scan("(?m)^Review:[ \t]*(GO|NO-GO)\\b[ \t]*([0-9a-fA-F]*)")] | last) as $m |
+              ($mark.body | [scan("(?m)^Agent:[ \t]*(\\S+)")] | last | if . then .[0] else "" end) as $agent |
+              ($mark.body | [scan("(?m)^OpenClaw-Session:[ \t]*(\\S+)")] | last | if . then .[0] else "" end) as $session |
+              if $m[0] == "NO-GO" then "failure|latest review comment is NO-GO"
+              elif ($m[1] | length) < 7 or ($head | startswith($m[1]) | not) then "failure|latest Review: GO names \($m[1]), head is \($head[0:12])"
+              elif $agent != "dev-review" then "failure|Review: GO lacks Agent: dev-review"
+              elif ($session | test("^agent:dev-review:.+")) | not then "failure|Review: GO lacks OpenClaw-Session: agent:dev-review:..."
+              else "success|Review: GO from dev-review on \($head[0:12])" end
+            end' <<<"$pr_json")
+          status=${verdict%%|*}
+          description=${verdict#*|}
+          echo "$status: $description"
+          gh api "repos/$REPO/statuses/$head" \
+            -f state="$status" \
+            -f context="review/go" \
+            -f description="${description:0:140}" \
+            -f target_url="${{ github.server_url }}/$REPO/pull/$PR" >/dev/null
