@@ -83,6 +83,13 @@ Requires JDK 17 and the Android SDK (platform 35).
 > `keystore.properties.example`). Configure your own upload key the same way for
 > store distribution.
 
+**Publishing to Google Play:** the manual `Play Store` workflow (Actions →
+Play Store → Run workflow) checks out a release tag, builds the AAB signed with
+the upload key, refuses a debug-signed bundle, and uploads it to the chosen
+track with the fr-FR and en-US release notes. It needs the four signing secrets
+above plus `PLAY_SERVICE_ACCOUNT_JSON`, the JSON key of a Google Cloud service
+account invited in the Play Console with the *Release apps* permission for Ondes.
+
 ## Project layout
 
 ```
